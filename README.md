@@ -2,7 +2,8 @@
 
 **Team member:** Hassaan Muzammil  
 **Selected track:** Option 1 — Modern Deep Learning Pipeline  
-**Repository:** This repository
+
+---
 
 ## Project Documents
 
@@ -11,6 +12,8 @@
 - [Literature Review](#literature-review)
 - [AI Audit](#ai-novelty--feasibility-audit)
 
+---
+
 ## Abstract
 
 Aggressive post-training quantization makes large language models cheaper to serve but degrades their accuracy. Recover-LoRA addresses this by quantizing a model's MLP gate/up projection layers to 2-bit precision and training small LoRA adapters through knowledge distillation against the full-precision version of the same model, using self-generated synthetic text and no labelled data. It reports recovering 80–95% of the lost accuracy on 9 of 12 general knowledge and reasoning benchmarks.
@@ -18,6 +21,8 @@ Aggressive post-training quantization makes large language models cheaper to ser
 However, the method has not been evaluated on tool calling: selecting the correct function, populating its arguments, and abstaining when no available function applies. This project tests whether quantization recovery generalizes to that deployment-critical structured capability. We compare five configurations of Qwen3-4B-Instruct-2507: the untouched full-precision model, the damaged quantized model, a reproduction of the published recovery recipe, a variant distilled on tool-calling prompts, and a labelled fine-tuning positive control. We evaluate them on MMLU and HellaSwag, IFEval, and the Berkeley Function Calling Leaderboard (BFCL), while classifying failures by type rather than relying only on aggregate accuracy.
 
 The central claim under test is that a recovery method's headline result is a property of the *(method, evaluation-suite)* pair rather than of the method alone, and that general-purpose benchmarks may overstate what survives quantization for deployment-critical structured capabilities.
+
+--- 
 
 ## Project Proposal
 
@@ -76,6 +81,8 @@ Every tool-calling failure will be assigned to one of the following channels:
 - Unparseable output
 
 The project succeeds if RQ1 receives an interpretable answer in either direction. Unequal recovery would show that general benchmarks are insufficient for judging deployment-bound quantized models; equal recovery would extend Recover-LoRA's validated scope to tool calling. If the reproduction does not recover a pre-registered minimum fraction of the general-capability damage gap, the project will invoke a narrower fallback analysis rather than draw conclusions from a failed baseline.
+
+---
 
 ### Proposed Technical Approach
 
@@ -148,6 +155,7 @@ The survey covers ten recent works from 2024–2026. Recover-LoRA's original pap
 
 Prior work establishes that quantization damages agentic behavior and that distillation can recover general capabilities. Other studies disagree on whether recovery-data domain matters, and sub-4-bit work shows that low-rank adapter capacity may be limiting. However, the surveyed work does not apply a quantization-recovery method and directly measure whether it restores tool-calling reliability or whether the same adapter recovers different capability types at different rates.
 
+---
 
 ## AI Novelty & Feasibility Audit
 
@@ -166,3 +174,5 @@ The five-configuration × three-suite × multi-seed × rank-sweep design (C1–C
 ### Bottom-line 
 
 Well-posed research question with a clear, citable gap, but the novelty rests on evaluation/analysis design rather than a new method, sits adjacent to a fast-moving red-ocean subfield, and carries meaningful execution risk given the scale of the experimental matrix relative to a single-semester project.
+
+---
