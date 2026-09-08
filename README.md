@@ -2,7 +2,8 @@
 
 ## Does Quantization Recovery Generalize to Tool-Calling Reliability?
 
-**Team member:** Hassaan Muzammil 
+**Team member:** Hassaan Muzammil
+
 **Selected track:** Option 1 — Modern Deep Learning Pipeline 
 
 ---
