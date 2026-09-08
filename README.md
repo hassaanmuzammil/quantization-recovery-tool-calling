@@ -1,29 +1,84 @@
-# quantization-recovery-tool-calling
+# Does Quantization Recovery Generalize to Tool-Calling Reliability?
 
-## Does Quantization Recovery Generalize to Tool-Calling Reliability?
+**Team member:** Hassaan Muzammil  
+**Selected track:** Option 1 — Modern Deep Learning Pipeline  
+**Repository:** This repository
 
-**Team member:** Hassaan Muzammil
+## Project Documents
 
-**Selected track:** Option 1 — Modern Deep Learning Pipeline 
-
----
+- [Abstract](#abstract)
+- [Project Proposal](#project-proposal)
+- [Literature Review](#literature-review)
 
 ## Abstract
 
-Aggressive post-training quantization makes large language models cheap to serve but degrades their accuracy. A recent method, Recover-LoRA, addresses this by quantizing a model's MLP gate/up projection layers to 2-bit precision and then training small LoRA adapters through knowledge distillation against the full-precision version of the same model, using self-generated synthetic text and no labelled data. It reports recovering 80–95% of the lost accuracy on 9 of 12 general knowledge and reasoning benchmarks.
+Aggressive post-training quantization makes large language models cheaper to serve but degrades their accuracy. Recover-LoRA addresses this by quantizing a model's MLP gate/up projection layers to 2-bit precision and training small LoRA adapters through knowledge distillation against the full-precision version of the same model, using self-generated synthetic text and no labelled data. It reports recovering 80–95% of the lost accuracy on 9 of 12 general knowledge and reasoning benchmarks.
 
-Every benchmark it reports on measures general capability. The method has never been evaluated on tool calling—selecting the correct function, populating its arguments, and abstaining when no available function applies—which is the capability that motivates most small-model deployments in agentic systems. The authors list broader capability validation as future work.
+However, the method has not been evaluated on tool calling: selecting the correct function, populating its arguments, and abstaining when no available function applies. This project tests whether quantization recovery generalizes to that deployment-critical structured capability. We compare five configurations of Qwen3-4B-Instruct-2507: the untouched full-precision model, the damaged quantized model, a reproduction of the published recovery recipe, a variant distilled on tool-calling prompts, and a labelled fine-tuning positive control. We evaluate them on MMLU and HellaSwag, IFEval, and the Berkeley Function Calling Leaderboard (BFCL), while classifying failures by type rather than relying only on aggregate accuracy.
 
-This project tests whether that recovery generalizes. We quantize Qwen3-4B-Instruct-2507 identically, then build and compare five configurations: the untouched full-precision model, the damaged quantized model, a faithful reproduction of the published recovery recipe, a variant running the identical distillation procedure over tool-calling prompts instead of general text, and a labelled fine-tuning arm serving as a positive control.
+The central claim under test is that a recovery method's headline result is a property of the *(method, evaluation-suite)* pair rather than of the method alone, and that general-purpose benchmarks may overstate what survives quantization for deployment-critical structured capabilities.
 
-All configurations are evaluated on three benchmark suites chosen to separate capability type from evaluation-metric type: MMLU and HellaSwag, IFEval, and the Berkeley Function Calling Leaderboard. Rather than reporting a single accuracy per configuration, every failure is classified into a specific channel—hallucinated call, wrong function, wrong argument type or value, wrong arity, unparseable output, or incorrect abstention.
+## Project Proposal
 
-The central claim under test is that a recovery method's headline number is a property of the *(method, evaluation-suite)* pair rather than of the method itself, and that general-purpose benchmarks systematically overstate what survives quantization for deployment-critical structured capabilities.
+### Problem Formulation
 
+### Domain problem
 
-## Proposed Technical Approach
+Recover-LoRA reports strong recovery after selective 2-bit quantization, but only on general knowledge and reasoning tasks. A practitioner therefore has no evidence that its reported recovery transfers to tool calling, where the model must make a conditional structured decision:
 
-### Experimental configurations
+1. Decide whether a function call is appropriate.
+2. Select the correct function from the available schemas.
+3. Produce the correct number of arguments with valid names, types, and values.
+4. Abstain and answer normally when no function applies.
+
+### Research questions
+
+- **RQ1 — Is recovery capability-dependent?** Does the same general-text recovery adapter restore general benchmarks, instruction following, and tool calling at different rates?
+- **RQ2 — Does the distillation prompt domain matter?** With the method, loss, teacher, training budget, rank, and learning rate fixed, does distilling on tool-calling prompts restore tool reliability better than distilling on general text?
+
+### Input and output specification
+
+| Item | Specification |
+| --- | --- |
+| System input | User query plus available function schemas: name, description, typed parameters, and required fields |
+| System output | Structured function call containing a name and JSON arguments, or plain text when no function applies |
+| Experimental input | Model checkpoint at a given precision, with or without a LoRA adapter |
+| Experimental output | Per-suite scores, chance-corrected recovery, paired statistical results, and failure-channel counts |
+
+### Metrics and success criteria
+
+The primary metric is the **absolute accuracy delta on a chance-corrected scale**:
+
+```text
+chance_corrected_score = (raw_score - chance) / (1 - chance)
+```
+
+This prevents MMLU's 25% random-guessing floor from artificially inflating recovery relative to BFCL's roughly zero floor.
+
+The secondary metric is the recovery percentage:
+
+```text
+recovery = (recovered - quantized) / (full_precision - quantized)
+```
+
+Recovery percentage will be reported only when the original damage gap exceeds a pre-registered threshold. It will not be averaged across categories or reported when the denominator is negative or too small.
+
+Every tool-calling failure will be assigned to one of the following channels:
+
+- Hallucinated call
+- Abstained when a call was required
+- Function name absent from the offered list
+- Wrong function selected from the offered list
+- Wrong arity
+- Argument type error
+- Argument value error
+- Unparseable output
+
+The project succeeds if RQ1 receives an interpretable answer in either direction. Unequal recovery would show that general benchmarks are insufficient for judging deployment-bound quantized models; equal recovery would extend Recover-LoRA's validated scope to tool calling. If the reproduction does not recover a pre-registered minimum fraction of the general-capability damage gap, the project will invoke a narrower fallback analysis rather than draw conclusions from a failed baseline.
+
+### Proposed Technical Approach
+
+#### Experimental configurations
 
 | ID | Configuration | Purpose |
 | --- | --- | --- |
@@ -35,14 +90,14 @@ The central claim under test is that a recovery method's headline number is a pr
 
 C4 remains a distillation experiment, not supervised fine-tuning. The full-precision teacher generates both general-text and tool-calling corpora, so C3 and C4 differ in prompt domain rather than data provenance. Tool samples use hand-authored schemas and are filtered only for structural parseability, not teacher correctness.
 
-### Model
+#### Model
 
 - **Primary:** Qwen3-4B-Instruct-2507, selected for its 4B scale and native function-calling mode.
 - **Optional secondary model:** Granite 4 Micro or Phi-4-mini, subject to compute availability.
 
 All configurations will use the same reasoning mode. The primary experiment is a controlled Qwen case study; the source paper used a different Qwen3-4B variant, so this project will not use its published 80–95% figure as the experimental denominator.
 
-### Data and evaluation suites
+#### Data and evaluation suites
 
 | Suite | Benchmarks | Scoring | Purpose |
 | --- | --- | --- | --- |
@@ -52,7 +107,7 @@ All configurations will use the same reasoning mode. The primary experiment is a
 
 IFEval is essential to the design. Comparing only ranking-scored MMLU/HellaSwag with generative BFCL would confound capability type with evaluation type. Suite A versus B isolates the ranking/generation difference; Suite B versus C isolates non-agentic instruction following from tool calling.
 
-### Training and analysis
+#### Training and analysis
 
 - Selectively quantize the MLP gate/up projections to 2-bit using quantize-dequantize simulation.
 - Train LoRA adapters by minimizing KL divergence between full-precision teacher and quantized-student token distributions.
@@ -63,7 +118,7 @@ IFEval is essential to the design. Comparing only ranking-scored MMLU/HellaSwag 
 - Pre-register equivalence bounds and use TOST when interpreting a null difference between C3 and C4.
 - Before training, verify that any top-k logit truncation still includes the behavior-switch tokens that determine whether the model calls a tool or answers in prose.
 
-### Scope and limitations
+#### Scope and limitations
 
 - Quantization is simulated rather than kernel-native; therefore, this project makes no throughput or deployment-speed claim.
 - The full Recover-LoRA paper and exact recipe must be verified before C3 training begins.
@@ -71,8 +126,7 @@ IFEval is essential to the design. Comparing only ranking-scored MMLU/HellaSwag 
 - Teacher-generated distillation data does not expose the student to its own autoregressive error states.
 - The complete five-configuration, three-suite, multi-seed experiment is compute-intensive; the Qwen primary model and load-bearing BFCL categories take priority over the optional second model.
 
-
-## Literature and State-of-the-Art Survey
+## Literature Review
 
 The survey covers ten recent works from 2024–2026. Recover-LoRA's original paper and extension are treated as one work.
 
