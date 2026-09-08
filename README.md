@@ -9,7 +9,7 @@
 - [Abstract](#abstract)
 - [Project Proposal](#project-proposal)
 - [Literature Review](#literature-review)
-- [AI Audit](#ai-novelty-&-feasibility-audit)
+- [AI Audit](#ai-novelty--feasibility-audit)
 
 ## Abstract
 
