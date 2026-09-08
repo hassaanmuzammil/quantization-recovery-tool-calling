@@ -21,6 +21,56 @@ All configurations are evaluated on three benchmark suites chosen to separate ca
 The central claim under test is that a recovery method's headline number is a property of the *(method, evaluation-suite)* pair rather than of the method itself, and that general-purpose benchmarks systematically overstate what survives quantization for deployment-critical structured capabilities.
 
 
+## Proposed Technical Approach
+
+### Experimental configurations
+
+| ID | Configuration | Purpose |
+| --- | --- | --- |
+| **C1** | Untouched full-precision model | Performance ceiling and recovery denominator |
+| **C2** | 2-bit gate/up quantization without recovery | Measures quantization damage |
+| **C3** | C2 + LoRA distilled on self-generated general text | Recover-LoRA reproduction; answers RQ1 |
+| **C4** | C2 + LoRA distilled on self-generated tool-calling text | Domain-controlled recovery arm; answers RQ2 |
+| **C5** | Full-precision model + labelled tool SFT LoRA | Positive control showing that tool capability is movable under the training budget |
+
+C4 remains a distillation experiment, not supervised fine-tuning. The full-precision teacher generates both general-text and tool-calling corpora, so C3 and C4 differ in prompt domain rather than data provenance. Tool samples use hand-authored schemas and are filtered only for structural parseability, not teacher correctness.
+
+### Model
+
+- **Primary:** Qwen3-4B-Instruct-2507, selected for its 4B scale and native function-calling mode.
+- **Optional secondary model:** Granite 4 Micro or Phi-4-mini, subject to compute availability.
+
+All configurations will use the same reasoning mode. The primary experiment is a controlled Qwen case study; the source paper used a different Qwen3-4B variant, so this project will not use its published 80–95% figure as the experimental denominator.
+
+### Data and evaluation suites
+
+| Suite | Benchmarks | Scoring | Purpose |
+| --- | --- | --- | --- |
+| **A: General capability** | MMLU, HellaSwag | Log-likelihood ranking | Reproduction check |
+| **B: Generative instruction following** | IFEval, prompt-level strict | Free generation | Separates generation/format effects from agentic capability |
+| **C: Tool calling** | BFCL v4 live categories, relevance, and irrelevance | Generated calls scored by AST matching | Measures structured tool reliability |
+
+IFEval is essential to the design. Comparing only ranking-scored MMLU/HellaSwag with generative BFCL would confound capability type with evaluation type. Suite A versus B isolates the ranking/generation difference; Suite B versus C isolates non-agentic instruction following from tool calling.
+
+### Training and analysis
+
+- Selectively quantize the MLP gate/up projections to 2-bit using quantize-dequantize simulation.
+- Train LoRA adapters by minimizing KL divergence between full-precision teacher and quantized-student token distributions.
+- Hold sample count, step count, loss, teacher, learning rate, and adapter rank fixed between C3 and C4.
+- Run a rank sweep at **r = 16** and **r = 64** to test whether low-rank capacity, rather than capability type, explains weak recovery.
+- Use two to three seeds per trained configuration to establish a noise floor.
+- Use paired item-level **McNemar tests** because every configuration sees the same evaluation items.
+- Pre-register equivalence bounds and use TOST when interpreting a null difference between C3 and C4.
+- Before training, verify that any top-k logit truncation still includes the behavior-switch tokens that determine whether the model calls a tool or answers in prose.
+
+### Scope and limitations
+
+- Quantization is simulated rather than kernel-native; therefore, this project makes no throughput or deployment-speed claim.
+- The full Recover-LoRA paper and exact recipe must be verified before C3 training begins.
+- At 2-bit precision, LoRA capacity may be insufficient to repair the damaged representation; the rank sweep tests this competing explanation.
+- Teacher-generated distillation data does not expose the student to its own autoregressive error states.
+- The complete five-configuration, three-suite, multi-seed experiment is compute-intensive; the Qwen primary model and load-bearing BFCL categories take priority over the optional second model.
+
 
 ## Literature and State-of-the-Art Survey
 
