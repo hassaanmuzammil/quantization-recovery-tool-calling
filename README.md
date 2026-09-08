@@ -9,6 +9,7 @@
 - [Abstract](#abstract)
 - [Project Proposal](#project-proposal)
 - [Literature Review](#literature-review)
+- [AI Audit](#ai-novelty-&-feasibility-audit)
 
 ## Abstract
 
@@ -146,3 +147,16 @@ The survey covers ten recent works from 2024–2026. Recover-LoRA's original pap
 ### Identified research gap
 
 Prior work establishes that quantization damages agentic behavior and that distillation can recover general capabilities. Other studies disagree on whether recovery-data domain matters, and sub-4-bit work shows that low-rank adapter capacity may be limiting. However, the surveyed work does not apply a quantization-recovery method and directly measure whether it restores tool-calling reliability or whether the same adapter recovers different capability types at different rates.
+
+
+## AI Novelty & Feasibility Audit
+
+**AI Critique Summary:**
+
+Novelty is real but narrow and incremental rather than foundational. The core method (Recover-LoRA: 2-bit gate/up quantization + KL-distillation LoRA recovery) is not your own — you're reproducing an existing 2025/2026 recipe and extending its *evaluation scope* to tool-calling. The genuine contribution is the RQ1/RQ2 framing: testing whether a recovery method's reported gains transfer across capability types (general knowledge vs. structured tool-calling), and whether recovery-data domain matters when the recipe is otherwise held fixed. This is a legitimate, well-scoped gap — the literature review shows adjacent papers (Flat Score/Amplified Failures, Can Compressed LLMs Truly Act?) establish that quantization hurts agentic/tool behavior, and others (UPQ) show domain-sensitivity of recovery, but none combine LoRA-recovery-method reproduction + tool-calling-specific BFCL evaluation + failure-channel taxonomy in one controlled study. So the "slice" is defensible, but it's an evaluation/ablation contribution on top of someone else's method, not a new algorithm — reviewers at a strong venue could view this as "benchmarking a known technique on a new task" unless the analysis (failure-channel breakdown, chance-corrected scoring, McNemar/TOST statistical rigor) is emphasized as the actual novelty.
+
+**Red ocean / oversaturation risk:** Moderate-to-high. Quantization-recovery-via-distillation is an extremely active area (BitDistiller, RILQ, UPQ, QAD-NVFP4, and the base Recover-LoRA paper itself all published within the last \~18 months), so the "recovery method" side of the project sits in a crowded, fast-moving space where your specific angle (tool-calling generalization) could be scooped or already partially covered by a near-future paper — "Flat Score, Amplified Failures" (2607.27275) is uncomfortably close in spirit, even though it doesn't test LoRA recovery. The differentiation needs to be stated explicitly and early in any writeup, or reviewers will read this as "yet another quantization-recovery ablation."
+
+**Feasibility concerns:** The five-configuration × three-suite × multi-seed × rank-sweep design (C1–C5, Suites A/B/C, r=16/64, 2–3 seeds) is compute- and engineering-heavy for a single-author, semester-length project — this is the biggest practical risk, not the idea itself. Reproducing Recover-LoRA correctly before touching C3 is itself nontrivial and is explicitly flagged in your own scope section as unverified. The pre-registered success criteria (minimum damage-gap recovery threshold, equivalence bounds for TOST) are good scientific hygiene but raise the bar for what counts as a "successful" result — a failed reproduction triggers a fallback analysis, which is a smart hedge but signals the core pipeline isn't de-risked yet.
+
+**Bottom line:** Well-posed research question with a clear, citable gap, but the novelty rests on evaluation/analysis design rather than a new method, sits adjacent to a fast-moving red-ocean subfield, and carries meaningful execution risk given the scale of the experimental matrix relative to a single-semester project.
