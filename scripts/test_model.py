@@ -2,6 +2,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer
 
 model_id="Qwen/Qwen3-4B-Instruct-2507"
+model_id = "meta-llama/Llama-3.2-1B-Instruct"
 
 tokenizer = AutoTokenizer.from_pretrained(model_id)
 
