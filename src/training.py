@@ -39,11 +39,13 @@ def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> 
     )
 
     optimizer.zero_grad(set_to_none=True)
-    for _ in range(config.epochs):
+    total_steps = 0
+    for epoch in range(config.epochs):
         epoch_batches = list(batches(texts, config.batch_size))
         for group_start in range(0, len(epoch_batches), config.gradient_accumulation_steps):
             group = epoch_batches[group_start : group_start + config.gradient_accumulation_steps]
             group_size = len(group)
+            group_loss = 0.0
             for batch in group:
                 encoded = tokenizer(
                     list(batch),
@@ -56,9 +58,17 @@ def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> 
                     teacher_logits = teacher(**encoded).logits
                 student_logits = student(**encoded).logits
                 mask = encoded.attention_mask.to(student_logits.dtype)
-                (distillation_loss(teacher_logits, student_logits, mask) / group_size).backward()
+                loss = distillation_loss(teacher_logits, student_logits, mask)
+                group_loss += loss.item()
+                (loss / group_size).backward()
             optimizer.step()
             scheduler.step()
             optimizer.zero_grad(set_to_none=True)
+            total_steps += 1
+            print(
+                f"epoch {epoch + 1}/{config.epochs} | "
+                f"step {total_steps} | loss {group_loss / group_size:.6f}",
+                flush=True,
+            )
 
     save_adapter_checkpoint(student, tokenizer, checkpoint, config)
