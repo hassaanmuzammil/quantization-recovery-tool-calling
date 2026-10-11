@@ -50,7 +50,7 @@ def generate_synthetic_data(config: RecoverLoRAConfig, output: Path) -> None:
     prefix = generate_greedy_prefix(model, tokenizer, config)
     print(f"Greedy prefix: {tokenizer.decode(prefix[0], skip_special_tokens=True)}", flush=True)
     output.parent.mkdir(parents=True, exist_ok=True)
-    with output.open("w", encoding="utf-8") as handle:
+    with output.open("a", encoding="utf-8") as handle:
         for _ in range(config.synthetic_samples):
             text = generate_hybrid_sample(model, tokenizer, config, prefix)
             handle.write(json.dumps({"text": text}, ensure_ascii=False) + "\n")
