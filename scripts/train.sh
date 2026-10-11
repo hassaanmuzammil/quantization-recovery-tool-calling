@@ -3,6 +3,10 @@ python -m src.prepare_degraded \
     --output ~/.cache/huggingface/hub/models--meta-llama--Llama-3.2-1B-Instruct-degraded \
     --device cuda:0 \
     --dtype bfloat16 \
+    --method random-perturbation \
+    # --method gate-up-quantization \
+    # --bits 2 \
+    # --group-size 32 \
     --noise-std 0.01
 
 python -m src.recover_lora \
