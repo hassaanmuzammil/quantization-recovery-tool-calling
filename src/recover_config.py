@@ -10,7 +10,7 @@ class RecoverLoRAConfig:
     output_dir: str = "outputs/recover_lora"
     device: str = "cuda:0"
     dtype: str = "bfloat16"
-    lora_targets: tuple[str, ...] = ("k_proj", "v_proj")
+    lora_targets: tuple[str, ...] | None = None
     lora_rank: int = 64
     lora_alpha: int = 64
     learning_rate: float = 5e-4

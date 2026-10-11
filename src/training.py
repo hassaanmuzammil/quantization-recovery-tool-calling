@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+import json
 import math
 from pathlib import Path
 
@@ -16,8 +18,31 @@ def _optimizer_steps(config: RecoverLoRAConfig, batch_count: int) -> int:
     return config.epochs * math.ceil(batch_count / config.gradient_accumulation_steps)
 
 
+def _resolve_lora_targets(config: RecoverLoRAConfig) -> RecoverLoRAConfig:
+    if config.lora_targets is not None:
+        return config
+
+    metadata_path = Path(config.degraded_model) / "degradation_config.json"
+    method = "random-perturbation"
+    if metadata_path.exists():
+        with metadata_path.open(encoding="utf-8") as handle:
+            method = json.load(handle).get("method", method)
+
+    targets_by_method = {
+        "random-perturbation": ("k_proj", "v_proj"),
+        "gate-up-quantization": ("gate_proj", "up_proj"),
+    }
+    try:
+        targets = targets_by_method[method]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported degradation method in {metadata_path}: {method}") from exc
+    print(f"Using LoRA targets {targets} for degradation method {method}", flush=True)
+    return replace(config, lora_targets=targets)
+
+
 def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> None:
     set_seed(config.seed)
+    config = _resolve_lora_targets(config)
     tokenizer = load_tokenizer(config.teacher_model)
     teacher = load_model(config.teacher_model, config.device, config.dtype).eval()
     teacher.requires_grad_(False)

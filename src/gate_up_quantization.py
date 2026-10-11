@@ -5,7 +5,7 @@ from torch import nn
 
 
 def quantize_gate_up_projections(
-    model: nn.Module, bits, group_size: int = 32
+    model: nn.Module, bits: int, group_size: int = 32
 ) -> nn.Module:
     """Apply groupwise affine fake quantization to MLP gate/up weights.
 

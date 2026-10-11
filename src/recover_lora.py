@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from .adapters import LoRALinear, add_lora_adapters
@@ -31,6 +32,19 @@ def save_degraded_model(config: RecoverLoRAConfig) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(destination)
     load_tokenizer(config.teacher_model).save_pretrained(destination)
+    (destination / "degradation_config.json").write_text(
+        json.dumps(
+            {
+                "method": config.degradation_method,
+                "bits": config.quantization_bits,
+                "group_size": config.quantization_group_size,
+                "noise_std": config.perturbation_std,
+                "seed": config.seed,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -40,7 +54,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", default="outputs/recover_lora")
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--dtype", choices=("float32", "float16", "bfloat16"), default="bfloat16")
-    parser.add_argument("--lora-targets", default="k_proj,v_proj")
+    parser.add_argument(
+        "--lora-targets",
+        default=None,
+        help="Override adapter targets (otherwise inferred from degraded checkpoint metadata)",
+    )
     parser.add_argument("--synthetic-samples", type=int, default=120_000)
     parser.add_argument("--seed", type=int, default=1234)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -72,7 +90,11 @@ def main() -> None:
         output_dir=args.output_dir,
         device=args.device,
         dtype=args.dtype,
-        lora_targets=tuple(part.strip() for part in args.lora_targets.split(",") if part.strip()),
+        lora_targets=(
+            tuple(part.strip() for part in args.lora_targets.split(",") if part.strip())
+            if args.lora_targets
+            else None
+        ),
         synthetic_samples=args.synthetic_samples,
         seed=args.seed,
         perturbation_std=getattr(args, "noise_std", 0.01),

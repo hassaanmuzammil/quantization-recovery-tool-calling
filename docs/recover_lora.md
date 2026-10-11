@@ -70,4 +70,9 @@ python -m src.recover_lora \
   --checkpoint outputs/recover_lora/adapter
 ```
 
+Training reads the degradation metadata saved with the checkpoint and selects
+K/V adapters for random perturbation or gate/up adapters for gate/up
+quantization. You can override this with `--lora-targets k_proj,v_proj` (or
+`--lora-targets gate_proj,up_proj`) before `train`.
+
 The trained adapter is saved to `outputs/recover_lora/adapter`.

@@ -43,6 +43,8 @@ def _replace_targets(module: nn.Module, targets: set[str], rank: int, alpha: int
 def add_lora_adapters(model: nn.Module, config: RecoverLoRAConfig) -> int:
     for parameter in model.parameters():
         parameter.requires_grad_(False)
+    if config.lora_targets is None:
+        raise ValueError("LoRA targets must be resolved before adding adapters")
     replaced = _replace_targets(model, set(config.lora_targets), config.lora_rank, config.lora_alpha)
     if replaced == 0:
         raise ValueError(f"No target Linear modules found for {config.lora_targets}")
