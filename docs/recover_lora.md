@@ -21,8 +21,27 @@ python -m src.prepare_degraded \
     --output "$DEGRADED_MODEL" \
     --device "$DEVICE" \
     --dtype "$DTYPE" \
+    --method random-perturbation \
     --noise-std 0.01
 ```
+
+To quantize only the MLP gate/up projection weights and leave all other weights
+at BF16, choose 2 or 4 bits with `--bits` (the paper's setup uses 2 bits):
+
+```bash
+python -m src.prepare_degraded \
+    --teacher-model "$TEACHER_MODEL" \
+    --output "$DEGRADED_MODEL" \
+    --device "$DEVICE" \
+    --dtype "$DTYPE" \
+    --method gate-up-quantization \
+    --bits 2 \
+    --group-size 32
+```
+
+This saves a BF16 checkpoint whose gate/up weights have been quantized and
+dequantized (fake quantization) for recovery experiments; it is not a packed
+2-bit inference checkpoint.
 
 ## 2. Generate synthetic training data
 

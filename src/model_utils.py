@@ -34,10 +34,3 @@ def load_tokenizer(model_id: str):
     return tokenizer
 
 
-def perturb_kv_projections(model: nn.Module, noise_std: float, seed: int) -> nn.Module:
-    set_seed(seed)
-    with torch.no_grad():
-        for name, module in model.named_modules():
-            if isinstance(module, nn.Linear) and name.endswith(("k_proj", "v_proj")):
-                module.weight.add_(noise_std * torch.randn_like(module.weight))
-    return model

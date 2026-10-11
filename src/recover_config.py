@@ -25,3 +25,6 @@ class RecoverLoRAConfig:
     top_p: float = 0.9
     seed: int = 1234
     perturbation_std: float = 0.01
+    degradation_method: str = "random-perturbation"
+    quantization_group_size: int = 32
+    quantization_bits: int = 2

@@ -14,6 +14,14 @@ def main() -> None:
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--dtype", choices=("float32", "float16", "bfloat16"), default="bfloat16")
     parser.add_argument("--noise-std", type=float, default=0.01)
+    parser.add_argument(
+        "--method",
+        choices=("random-perturbation", "gate-up-quantization"),
+        default="random-perturbation",
+        help="How to degrade the teacher checkpoint",
+    )
+    parser.add_argument("--group-size", type=int, default=32)
+    parser.add_argument("--bits", type=int, choices=(2, 4), default=2)
     parser.add_argument("--seed", type=int, default=1234)
     args = parser.parse_args()
 
@@ -23,6 +31,9 @@ def main() -> None:
         device=args.device,
         dtype=args.dtype,
         perturbation_std=args.noise_std,
+        degradation_method=args.method,
+        quantization_group_size=args.group_size,
+        quantization_bits=args.bits,
         seed=args.seed,
     )
     save_degraded_model(config)

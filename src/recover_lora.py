@@ -7,7 +7,9 @@ from pathlib import Path
 
 from .adapters import LoRALinear, add_lora_adapters
 from .distillation import accuracy_recovery_percentage, distillation_loss
-from .model_utils import load_model, load_tokenizer, perturb_kv_projections, set_seed
+from .gate_up_quantization import quantize_gate_up_projections
+from .model_utils import load_model, load_tokenizer, set_seed
+from .random_perturbation import perturb_kv_projections
 from .recover_config import RecoverLoRAConfig
 from .synthetic_data import generate_hybrid_sample, generate_synthetic_data
 from .training import train
@@ -15,7 +17,16 @@ from .training import train
 
 def save_degraded_model(config: RecoverLoRAConfig) -> None:
     model = load_model(config.teacher_model, config.device, config.dtype)
-    perturb_kv_projections(model, config.perturbation_std, config.seed)
+    if config.degradation_method == "random-perturbation":
+        perturb_kv_projections(model, config.perturbation_std, config.seed)
+    elif config.degradation_method == "gate-up-quantization":
+        quantize_gate_up_projections(
+            model,
+            bits=config.quantization_bits,
+            group_size=config.quantization_group_size,
+        )
+    else:
+        raise ValueError(f"Unsupported degradation method: {config.degradation_method}")
     destination = Path(config.degraded_model)
     destination.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(destination)
@@ -33,7 +44,16 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--synthetic-samples", type=int, default=120_000)
     parser.add_argument("--seed", type=int, default=1234)
     subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser("prepare-degraded")
+    prepare_parser = subparsers.add_parser("prepare-degraded")
+    prepare_parser.add_argument(
+        "--method",
+        choices=("random-perturbation", "gate-up-quantization"),
+        default="random-perturbation",
+        help="How to degrade the teacher checkpoint",
+    )
+    prepare_parser.add_argument("--noise-std", type=float, default=0.01)
+    prepare_parser.add_argument("--group-size", type=int, default=32)
+    prepare_parser.add_argument("--bits", type=int, choices=(2, 4), default=2)
     subparsers.add_parser("generate-synthetic")
     train_parser = subparsers.add_parser("train")
     train_parser.add_argument("--synthetic-data", required=True, type=Path)
@@ -55,6 +75,10 @@ def main() -> None:
         lora_targets=tuple(part.strip() for part in args.lora_targets.split(",") if part.strip()),
         synthetic_samples=args.synthetic_samples,
         seed=args.seed,
+        perturbation_std=getattr(args, "noise_std", 0.01),
+        degradation_method=getattr(args, "method", "random-perturbation"),
+        quantization_group_size=getattr(args, "group_size", 32),
+        quantization_bits=getattr(args, "bits", 2),
         batch_size=getattr(args, "batch_size", 1),
         gradient_accumulation_steps=getattr(args, "gradient_accumulation_steps", 32),
         epochs=getattr(args, "epochs", 3),
