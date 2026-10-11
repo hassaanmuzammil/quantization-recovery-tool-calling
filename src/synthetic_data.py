@@ -10,7 +10,7 @@ from .recover_config import RecoverLoRAConfig
 
 
 @torch.no_grad()
-def generate_hybrid_sample(model: nn.Module, tokenizer, config: RecoverLoRAConfig) -> str:
+def generate_greedy_prefix(model: nn.Module, tokenizer, config: RecoverLoRAConfig) -> torch.Tensor:
     seed_token = torch.randint(
         low=0,
         high=model.config.vocab_size,
@@ -18,13 +18,19 @@ def generate_hybrid_sample(model: nn.Module, tokenizer, config: RecoverLoRAConfi
         device=model.device,
     )
     attention_mask = torch.ones_like(seed_token)
-    prefix = model.generate(
+    return model.generate(
         input_ids=seed_token,
         attention_mask=attention_mask,
         max_new_tokens=config.greedy_tokens,
         do_sample=False,
         pad_token_id=tokenizer.eos_token_id,
     )
+
+
+@torch.no_grad()
+def generate_hybrid_sample(
+    model: nn.Module, tokenizer, config: RecoverLoRAConfig, prefix: torch.Tensor
+) -> str:
     continuation = model.generate(
         input_ids=prefix,
         attention_mask=torch.ones_like(prefix),
@@ -41,8 +47,10 @@ def generate_synthetic_data(config: RecoverLoRAConfig, output: Path) -> None:
     set_seed(config.seed)
     model = load_model(config.teacher_model, config.device, config.dtype).eval()
     tokenizer = load_tokenizer(config.teacher_model)
+    prefix = generate_greedy_prefix(model, tokenizer, config)
+    print(f"Greedy prefix: {tokenizer.decode(prefix[0], skip_special_tokens=True)}")
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("w", encoding="utf-8") as handle:
         for index in range(config.synthetic_samples):
-            text = generate_hybrid_sample(model, tokenizer, config)
+            text = generate_hybrid_sample(model, tokenizer, config, prefix)
             handle.write(json.dumps({"text": text}, ensure_ascii=False) + "\n")
