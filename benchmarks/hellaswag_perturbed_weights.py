@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from pathlib import Path
 
 import torch
@@ -36,5 +37,6 @@ results = evaluator.simple_evaluate(
     log_samples=False,
 )
 
-with (output_dir / "results.json").open("w", encoding="utf-8") as file:
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+with (output_dir / f"results_{timestamp}.json").open("w", encoding="utf-8") as file:
     json.dump(results, file, indent=2, default=str)

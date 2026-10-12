@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from pathlib import Path
 
 from lm_eval import evaluator
@@ -17,5 +18,6 @@ results = evaluator.simple_evaluate(
     log_samples=True,
 )
 
-with (output_dir / "results.json").open("w", encoding="utf-8") as file:
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+with (output_dir / f"results_{timestamp}.json").open("w", encoding="utf-8") as file:
     json.dump(results, file, indent=2, default=str)
