@@ -15,6 +15,48 @@ from .model_utils import load_model, load_tokenizer, set_seed
 from .recover_config import RecoverLoRAConfig
 
 
+def _rng_state() -> dict:
+    state = {"python": random.getstate(), "torch": torch.get_rng_state()}
+    if torch.cuda.is_available():
+        state["cuda"] = torch.cuda.get_rng_state_all()
+    return state
+
+
+def _restore_rng_state(state: dict) -> None:
+    random.setstate(state["python"])
+    torch.set_rng_state(state["torch"])
+    if "cuda" in state and torch.cuda.is_available():
+        torch.cuda.set_rng_state_all(state["cuda"])
+
+
+def _save_training_checkpoint(
+    model,
+    tokenizer,
+    checkpoint: Path,
+    config: RecoverLoRAConfig,
+    optimizer,
+    scheduler,
+    total_steps: int,
+    next_epoch: int,
+    next_group_start: int,
+    next_validation: int,
+) -> None:
+    save_adapter_checkpoint(model, tokenizer, checkpoint, config)
+    torch.save(
+        {
+            "optimizer": optimizer.state_dict(),
+            "scheduler": scheduler.state_dict(),
+            "total_steps": total_steps,
+            "next_epoch": next_epoch,
+            "next_group_start": next_group_start,
+            "next_validation": next_validation,
+            "rng": _rng_state(),
+        },
+        checkpoint / "training_state.pt",
+    )
+    print(f"Saved resumable checkpoint: {checkpoint} (step {total_steps})", flush=True)
+
+
 def _optimizer_steps(config: RecoverLoRAConfig, batch_count: int) -> int:
     return config.epochs * math.ceil(batch_count / config.gradient_accumulation_steps)
 
@@ -114,10 +156,36 @@ def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> 
     optimizer.zero_grad(set_to_none=True)
     total_steps = 0
     next_validation = config.validation_interval_steps
-    for epoch in range(config.epochs):
+    start_epoch = 0
+    start_group_start = 0
+    if config.resume:
+        resume_dir = checkpoint / "checkpoints" / "_latest"
+        state_path = resume_dir / "training_state.pt"
+        adapter_path = resume_dir / "adapter_model.pt"
+        if not state_path.exists() or not adapter_path.exists():
+            raise FileNotFoundError(
+                f"Latest checkpoint must contain adapter_model.pt and training_state.pt: {resume_dir}"
+            )
+        adapter_state = torch.load(adapter_path, map_location="cpu", weights_only=True)
+        student.load_state_dict(adapter_state, strict=False)
+        state = torch.load(state_path, map_location="cpu", weights_only=False)
+        optimizer.load_state_dict(state["optimizer"])
+        scheduler.load_state_dict(state["scheduler"])
+        total_steps = state["total_steps"]
+        start_epoch = state["next_epoch"]
+        start_group_start = state["next_group_start"]
+        next_validation = state["next_validation"]
+        _restore_rng_state(state["rng"])
+        print(f"Resumed training from {resume_dir} at step {total_steps}", flush=True)
+
+    if config.save_every_steps < 0:
+        raise ValueError("save_every_steps must be non-negative")
+
+    for epoch in range(start_epoch, config.epochs):
         student.train()
         epoch_batches = list(batches(train_texts, config.batch_size))
-        for group_start in range(0, len(epoch_batches), config.gradient_accumulation_steps):
+        group_begin = start_group_start if epoch == start_epoch else 0
+        for group_start in range(group_begin, len(epoch_batches), config.gradient_accumulation_steps):
             group = epoch_batches[group_start : group_start + config.gradient_accumulation_steps]
             group_size = len(group)
             group_loss = 0.0
@@ -154,5 +222,37 @@ def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> 
                 )
                 while next_validation <= total_steps:
                     next_validation += config.validation_interval_steps
+
+            if config.save_every_steps and total_steps % config.save_every_steps == 0:
+                next_epoch = epoch
+                next_group_start = group_start + config.gradient_accumulation_steps
+                if next_group_start >= len(epoch_batches):
+                    next_epoch += 1
+                    next_group_start = 0
+                periodic_checkpoint = checkpoint / "checkpoints" / f"_{total_steps}"
+                _save_training_checkpoint(
+                    student,
+                    tokenizer,
+                    periodic_checkpoint,
+                    config,
+                    optimizer,
+                    scheduler,
+                    total_steps,
+                    next_epoch,
+                    next_group_start,
+                    next_validation,
+                )
+                _save_training_checkpoint(
+                    student,
+                    tokenizer,
+                    checkpoint / "checkpoints" / "_latest",
+                    config,
+                    optimizer,
+                    scheduler,
+                    total_steps,
+                    next_epoch,
+                    next_group_start,
+                    next_validation,
+                )
 
     save_adapter_checkpoint(student, tokenizer, checkpoint, config)

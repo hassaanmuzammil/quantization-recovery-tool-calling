@@ -17,7 +17,9 @@ class RecoverLoRAConfig:
     batch_size: int = 4
     gradient_accumulation_steps: int = 32
     validation_split: float = 0.1
-    validation_interval_steps: int = 10
+    validation_interval_steps: int = 100
+    save_every_steps: int = 1000
+    resume: bool = False
     warmup_steps: int = 80
     epochs: int = 3
     synthetic_samples: int = 120_000

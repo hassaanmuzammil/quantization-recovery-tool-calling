@@ -79,8 +79,22 @@ def _parser() -> argparse.ArgumentParser:
     train_parser.add_argument("--batch-size", type=int, default=4)
     train_parser.add_argument("--gradient-accumulation-steps", type=int, default=32)
     train_parser.add_argument("--validation-split", type=float, default=0.1)
-    train_parser.add_argument("--validation-interval-steps", type=int, default=10)
+    train_parser.add_argument("--validation-interval-steps", type=int, default=100)
     train_parser.add_argument("--epochs", type=int, default=1)
+    train_parser.add_argument(
+        "--save-every-steps",
+        type=int,
+        default=1000,
+        help="Save a resumable checkpoint every N optimizer steps (0 disables periodic saves)",
+    )
+    train_parser.add_argument(
+        "--resume",
+        nargs="?",
+        const=True,
+        default=False,
+        type=lambda value: value.lower() in {"1", "true", "yes", "on"},
+        help="Resume automatically from checkpoint/_latest (also accepts --resume=True)",
+    )
     return parser
 
 
@@ -106,8 +120,10 @@ def main() -> None:
         batch_size=getattr(args, "batch_size", 4),
         gradient_accumulation_steps=getattr(args, "gradient_accumulation_steps", 32),
         validation_split=getattr(args, "validation_split", 0.1),
-        validation_interval_steps=getattr(args, "validation_interval_steps", 10),
+        validation_interval_steps=getattr(args, "validation_interval_steps", 100),
         epochs=getattr(args, "epochs", 3),
+        save_every_steps=getattr(args, "save_every_steps", 1000),
+        resume=getattr(args, "resume", False),
     )
     if args.command == "prepare-degraded":
         save_degraded_model(config)

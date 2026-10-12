@@ -67,7 +67,8 @@ python -m src.recover_lora \
   --dtype "$DTYPE" \
   train \
   --synthetic-data outputs/recover_lora/synthetic.jsonl \
-  --checkpoint outputs/recover_lora/adapter
+  --checkpoint outputs/recover_lora/adapter \
+  --save-every-steps 1000
 ```
 
 Training reads the degradation metadata saved with the checkpoint and selects
@@ -76,3 +77,38 @@ quantization. You can override this with `--lora-targets k_proj,v_proj` (or
 `--lora-targets gate_proj,up_proj`) before `train`.
 
 The trained adapter is saved to `outputs/recover_lora/adapter`.
+Periodic resumable checkpoints are saved as
+`outputs/recover_lora/adapter/checkpoints/_1000` and the newest checkpoint is
+also maintained at `outputs/recover_lora/adapter/checkpoints/_latest`. Resume
+from the newest checkpoint with `--resume` (or `--resume=True`):
+
+```bash
+python -m src.recover_lora \
+  --teacher-model "$TEACHER_MODEL" \
+  --degraded-model "$DEGRADED_MODEL" \
+  --device "$DEVICE" \
+  --dtype "$DTYPE" \
+  train \
+  --synthetic-data outputs/recover_lora/synthetic.jsonl \
+  --checkpoint outputs/recover_lora/adapter \
+  --save-every-steps 1000 \
+  --resume
+```
+
+## 4. Run benchmarks
+
+Run a benchmark with:
+
+```bash
+python -m benchmarks.run_benchmark \
+    --benchmark hellaswag \
+    --method recovered \
+    --model "$TEACHER_MODEL" \
+    --degraded-model "$DEGRADED_MODEL" \
+    --adapter-dir outputs/recover_lora/adapter \
+    --device "$DEVICE" \
+    --dtype "$DTYPE" \
+    --batch-size 4
+```
+
+Replace `hellaswag` with `mmlu` or `ifeval` as needed. Use `--method original` for the teacher or `--method perturbed` for the degraded model.
