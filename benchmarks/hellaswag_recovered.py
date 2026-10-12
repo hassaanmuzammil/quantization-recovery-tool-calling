@@ -18,7 +18,7 @@ DEGRADED_MODEL = Path(
     "models--meta-llama--Llama-3.2-1B-Instruct-degraded"
 ).expanduser()
 ADAPTER_DIR = Path("outputs/recover_lora/adapters")
-OUTPUT_DIR = Path("benchmarks/hellaswag_recovered")
+OUTPUT_DIR = Path(__file__).resolve().parent / "outputs" / "hellaswag_recovered"
 
 
 def load_recovered_model():

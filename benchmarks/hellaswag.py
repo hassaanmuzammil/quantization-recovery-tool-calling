@@ -4,9 +4,10 @@ from pathlib import Path
 
 from lm_eval import evaluator
 
-model_id = "Qwen/Qwen3-4B-Instruct-2507"
+# model_id = "Qwen/Qwen3-4B-Instruct-2507"
+model_id = "meta-llama/Llama-3.2-1B-Instruct"
 
-output_dir = Path("outputs/hellaswag")
+output_dir = Path(__file__).resolve().parent / "outputs" / "hellaswag"
 output_dir.mkdir(parents=True, exist_ok=True)
 
 results = evaluator.simple_evaluate(
