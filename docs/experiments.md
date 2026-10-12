@@ -1,8 +1,8 @@
 # Experiments
 
-## Experiment 1: Recover-LoRA Performance Recovery on HellaSwag (Basic test)
+## Experiment 1: Recover-LoRA Performance Recovery (Basic test)
 
-**Description:** Test whether LoRA adapters trained with knowledge distillation can recover HellaSwag performance lost after degrading Meta Llama 3.2 1B Instruct using random weights perturbation.
+**Description:** Test whether LoRA adapters trained with knowledge distillation can recover performance lost after degrading model using random weights perturbation.
 
 ### Training setup
 
@@ -20,16 +20,20 @@
 - Learning rate: `5e-4`
 - Distillation: teacher-student token-level KL loss
 
-### HellaSwag results
+### Results
 
-All three models were evaluated on the same 10,042 zero-shot HellaSwag examples.
+All three model states were evaluated on the same benchmark examples: 10,042 for HellaSwag, 14,042 for MMLU, and 541 for IFEval.
 
-| Model state | Accuracy | Normalized accuracy |
-|---|---:|---:|
-| Original Llama 3.2 1B | 45.72% | 61.57% |
-| Degraded/perturbed Llama | 29.82% | 35.20% |
-| Recovered + LoRA | 40.10% | 50.88% |
+| Benchmark / metric | Original | Degraded | Recovered + LoRA | Recovery |
+|---|---:|---:|---:|---:|
+| HellaSwag accuracy | 45.72% | 29.82% | 40.10% | 64.6% |
+| HellaSwag normalized accuracy | 61.57% | 35.20% | 50.88% | 59.4% |
+| MMLU accuracy | 48.40% | 23.50% | 28.96% | 21.9% |
+| IFEval prompt-level strict | 49.72% | 13.86% | 21.07% | 20.1% |
+| IFEval instruction-level strict | 63.19% | 24.70% | 34.29% | 24.9% |
+| IFEval prompt-level loose | 53.79% | 15.16% | 22.18% | 18.2% |
+| IFEval instruction-level loose | 66.43% | 25.66% | 35.61% | 24.4% |
 
-### Main takeaway
+### Takeaway
 
-The degradation caused a 15.89-point accuracy drop. LoRA recovery restored 10.28 points, or approximately 64.6% of the lost accuracy. Normalized accuracy recovery was approximately 59.4%. The result is promising because the adapter recovered a substantial portion of the damage in 1 epoch of training, although it did not completely restore the original model’s performance.
+The one-epoch Recover-LoRA run recovered a substantial portion of the HellaSwag degradation (64.6% accuracy recovery), but much less on MMLU (21.9%) and IFEval (18.2–24.9% depending on the metric). This suggests the adapter can restore some general behavior, while recovering broader knowledge and instruction-following reliability remains more difficult under the current synthetic-data and short-training setup.

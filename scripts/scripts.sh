@@ -1,3 +1,13 @@
+python -m benchmarks.run_benchmark \
+  --benchmark hellaswag \
+  --method recovered \
+  --model meta-llama/Llama-3.2-1B-Instruct \
+  --degraded-model ~/.cache/huggingface/hub/models--meta-llama--Llama-3.2-1B-Instruct-degraded \
+  --adapter-dir outputs/recover_lora/adapters \
+  --device cuda:0 \
+  --dtype bfloat16 \
+  --batch-size 4
+
 python -m src.prepare_degraded \
     --teacher-model ~/.cache/huggingface/hub/models--meta-llama--Llama-3.2-1B-Instruct/snapshots/9213176726f574b556790deb65791e0c5aa438b6 \
     --output ~/.cache/huggingface/hub/models--meta-llama--Llama-3.2-1B-Instruct-degraded \
