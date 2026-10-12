@@ -76,9 +76,11 @@ def _parser() -> argparse.ArgumentParser:
     train_parser = subparsers.add_parser("train")
     train_parser.add_argument("--synthetic-data", required=True, type=Path)
     train_parser.add_argument("--checkpoint", type=Path)
-    train_parser.add_argument("--batch-size", type=int, default=1)
+    train_parser.add_argument("--batch-size", type=int, default=4)
     train_parser.add_argument("--gradient-accumulation-steps", type=int, default=32)
-    train_parser.add_argument("--epochs", type=int, default=3)
+    train_parser.add_argument("--validation-split", type=float, default=0.1)
+    train_parser.add_argument("--validation-interval-steps", type=int, default=10)
+    train_parser.add_argument("--epochs", type=int, default=1)
     return parser
 
 
@@ -101,8 +103,10 @@ def main() -> None:
         degradation_method=getattr(args, "method", "random-perturbation"),
         quantization_group_size=getattr(args, "group_size", 32),
         quantization_bits=getattr(args, "bits", 2),
-        batch_size=getattr(args, "batch_size", 1),
+        batch_size=getattr(args, "batch_size", 4),
         gradient_accumulation_steps=getattr(args, "gradient_accumulation_steps", 32),
+        validation_split=getattr(args, "validation_split", 0.1),
+        validation_interval_steps=getattr(args, "validation_interval_steps", 10),
         epochs=getattr(args, "epochs", 3),
     )
     if args.command == "prepare-degraded":

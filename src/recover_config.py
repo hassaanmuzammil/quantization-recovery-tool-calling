@@ -14,8 +14,10 @@ class RecoverLoRAConfig:
     lora_rank: int = 64
     lora_alpha: int = 64
     learning_rate: float = 5e-4
-    batch_size: int = 1
+    batch_size: int = 4
     gradient_accumulation_steps: int = 32
+    validation_split: float = 0.1
+    validation_interval_steps: int = 10
     warmup_steps: int = 80
     epochs: int = 3
     synthetic_samples: int = 120_000
