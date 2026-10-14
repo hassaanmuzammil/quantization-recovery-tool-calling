@@ -52,6 +52,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--teacher-model", default="Qwen/Qwen3-4B-Instruct-2507")
     parser.add_argument("--degraded-model", default="outputs/degraded_model")
     parser.add_argument("--output-dir", default="outputs/recover_lora")
+    parser.add_argument(
+        "--log-dir",
+        default=None,
+        help="TensorBoard log directory (defaults to <output-dir>/logs)",
+    )
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--dtype", choices=("float32", "float16", "bfloat16"), default="bfloat16")
     parser.add_argument(
@@ -77,6 +82,12 @@ def _parser() -> argparse.ArgumentParser:
     train_parser = subparsers.add_parser("train")
     train_parser.add_argument("--synthetic-data", required=True, type=Path)
     train_parser.add_argument("--checkpoint", type=Path)
+    train_parser.add_argument(
+        "--log-dir",
+        type=Path,
+        default=argparse.SUPPRESS,
+        help="TensorBoard log directory (defaults to <output-dir>/logs)",
+    )
     train_parser.add_argument("--gradient-accumulation-steps", type=int, default=32)
     train_parser.add_argument("--validation-split", type=float, default=0.1)
     train_parser.add_argument("--validation-interval-steps", type=int, default=100)
@@ -104,6 +115,7 @@ def main() -> None:
         teacher_model=args.teacher_model,
         degraded_model=args.degraded_model,
         output_dir=args.output_dir,
+        log_dir=args.log_dir,
         device=args.device,
         dtype=args.dtype,
         lora_targets=(

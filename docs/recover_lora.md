@@ -67,7 +67,8 @@ python -m src.recover_lora \
   --dtype "$DTYPE" \
   train \
   --synthetic-data outputs/recover_lora/synthetic.jsonl \
-  --checkpoint outputs/recover_lora/adapter \
+  --checkpoint outputs/recover_lora/ckpts/adapter \
+  --log-dir outputs/recover_lora/logs \
   --save-every-steps 1000
 ```
 
@@ -76,10 +77,13 @@ K/V adapters for random perturbation or gate/up adapters for gate/up
 quantization. You can override this with `--lora-targets k_proj,v_proj` (or
 `--lora-targets gate_proj,up_proj`) before `train`.
 
-The trained adapter is saved to `outputs/recover_lora/adapter`.
+The trained adapter is saved to `outputs/recover_lora/ckpts/adapter`.
+TensorBoard event files are written to `outputs/recover_lora/logs` and include
+model paths, degradation/training configuration, parameter counts, training
+loss, validation loss, learning rate, and epoch.
 Periodic resumable checkpoints are saved as
-`outputs/recover_lora/adapter/checkpoints/_1000` and the newest checkpoint is
-also maintained at `outputs/recover_lora/adapter/checkpoints/_latest`. Resume
+`outputs/recover_lora/ckpts/adapter/checkpoints/_1000` and the newest checkpoint is
+also maintained at `outputs/recover_lora/ckpts/adapter/checkpoints/_latest`. Resume
 from the newest checkpoint with `--resume` (or `--resume=True`):
 
 ```bash
@@ -91,8 +95,15 @@ python -m src.recover_lora \
   train \
   --synthetic-data outputs/recover_lora/synthetic.jsonl \
   --checkpoint outputs/recover_lora/adapter \
+  --log-dir outputs/recover_lora/logs \
   --save-every-steps 1000 \
   --resume
+```
+
+View the training curves with:
+
+```bash
+tensorboard --logdir outputs/recover_lora/logs
 ```
 
 ## 4. Run benchmarks
@@ -105,7 +116,7 @@ python -m benchmarks.run_benchmark \
     --method recovered \
     --model "$TEACHER_MODEL" \
     --degraded-model "$DEGRADED_MODEL" \
-    --adapter-dir outputs/recover_lora/adapter \
+    --adapter-dir outputs/recover_lora/ckpts/adapter \
     --device "$DEVICE" \
     --dtype "$DTYPE" \
     --batch-size 4

@@ -3,21 +3,19 @@ python -m benchmarks.run_benchmark \
   --method recovered \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --degraded-model ~/.cache/huggingface/hub/models--meta-llama--Llama-3.2-1B-Instruct-degraded \
-  --adapter-dir outputs/recover_lora/adapters \
+  --adapter-dir outputs/recover_lora/ckpts/adapter \
   --device cuda:0 \
   --dtype bfloat16 \
   --batch-size 4
 
 python -m src.prepare_degraded \
-    --teacher-model ~/.cache/huggingface/hub/models--meta-llama--Llama-3.2-1B-Instruct/snapshots/9213176726f574b556790deb65791e0c5aa438b6 \
-    --output ~/.cache/huggingface/hub/models--meta-llama--Llama-3.2-1B-Instruct-degraded \
+    --teacher-model ~/.cache/huggingface/hub/models--Qwen--Qwen3-4B-Instruct-2507/snapshots/cdbee75f17c01a7cc42f958dc650907174af0554 \
+    --output ~/.cache/huggingface/hub/models--Qwen--Qwen3-4B-Instruct-2507-q2-gate-up-g32 \
     --device cuda:0 \
     --dtype bfloat16 \
-    --method random-perturbation \
-    # --method gate-up-quantization \
-    # --bits 2 \
-    # --group-size 32 \
-    --noise-std 0.01
+    --method gate-up-quantization \
+    --bits 2 \
+    --group-size 32
 
 python -m src.recover_lora \
   --teacher-model /ocean/projects/cis260281p/muzammil/huggingface/hub/models--Qwen--Qwen3-4B-Instruct-2507/snapshots/cdbee75f17c01a7cc42f958dc650907174af0554 \
@@ -34,17 +32,17 @@ python -m src.recover_lora \
   --dtype bfloat16 \
   train \
   --synthetic-data outputs/recover_lora/synthetic.jsonl \
-  --checkpoint outputs/recover_lora/adapter
-
+  --checkpoint outputs/recover_lora/ckpts/adapter \
+  --log-dir outputs/recover_lora/logs
 
 bfcl generate \
   --model Qwen/Qwen3-4B-Instruct-2507 \
-  --model-path /ocean/projects/cis260281p/muzammil/huggingface/hub/models--Qwen--Qwen3-4B-Instruct-2507/snapshots/cdbee75f17c01a7cc42f958dc650907174af0554 \
   --test-category simple_python \
-  --backend vllm \
+  --backend sglang \
   --num-gpus 1 \
+  --local-model-path ~/.cache/huggingface/hub/models--Qwen--Qwen3-4B-Instruct-2507/snapshots/cdbee75f17c01a7cc42f958dc650907174af0554 \
   --gpu-memory-utilization 0.75
 
 bfcl evaluate \
-  --model Qwen3-4B-Instruct-2507-FC \
+  --model Qwen/Qwen3-4B-Instruct-2507 \
   --test-category simple_python

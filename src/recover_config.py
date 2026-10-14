@@ -8,6 +8,7 @@ class RecoverLoRAConfig:
     teacher_model: str
     degraded_model: str
     output_dir: str = "outputs/recover_lora"
+    log_dir: str | None = None
     device: str = "cuda:0"
     dtype: str = "bfloat16"
     lora_targets: tuple[str, ...] | None = None

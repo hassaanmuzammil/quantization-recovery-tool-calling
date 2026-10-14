@@ -7,6 +7,7 @@ from pathlib import Path
 import random
 
 import torch
+from torch.utils.tensorboard import SummaryWriter
 from transformers import get_linear_schedule_with_warmup
 
 from .adapters import add_lora_adapters, save_adapter_checkpoint
@@ -137,6 +138,35 @@ def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> 
     if config.validation_interval_steps <= 0:
         raise ValueError("validation_interval_steps must be positive")
     train_texts, validation_texts = _split_texts(texts, config.validation_split, config.seed)
+    log_dir = Path(config.log_dir) if config.log_dir else Path(config.output_dir) / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    writer = SummaryWriter(log_dir=str(log_dir))
+    writer.add_text(
+        "run/config",
+        json.dumps(
+            {
+                "config": config.__dict__,
+                "teacher_model": config.teacher_model,
+                "degraded_model": config.degraded_model,
+                "synthetic_data": str(synthetic_data),
+                "checkpoint": str(checkpoint),
+            },
+            indent=2,
+            default=str,
+        ),
+        0,
+    )
+    writer.add_text("run/models", f"Teacher: `{config.teacher_model}`\n\nStudent: `{config.degraded_model}`", 0)
+    writer.add_text("run/paths", f"Synthetic data: `{synthetic_data}`\n\nCheckpoint: `{checkpoint}`", 0)
+    degradation_metadata = Path(config.degraded_model) / "degradation_config.json"
+    if degradation_metadata.exists():
+        writer.add_text(
+            "run/degradation",
+            degradation_metadata.read_text(encoding="utf-8"),
+            0,
+        )
+    writer.add_scalar("data/train_examples", len(train_texts), 0)
+    writer.add_scalar("data/validation_examples", len(validation_texts), 0)
     print(
         f"Using {len(train_texts)} training examples and "
         f"{len(validation_texts)} validation examples",
@@ -151,6 +181,12 @@ def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> 
         optimizer,
         num_warmup_steps=config.warmup_steps,
         num_training_steps=_optimizer_steps(config, batch_count),
+    )
+    writer.add_scalar("model/total_parameters", sum(parameter.numel() for parameter in student.parameters()), 0)
+    writer.add_scalar(
+        "model/trainable_parameters",
+        sum(parameter.numel() for parameter in student.parameters() if parameter.requires_grad),
+        0,
     )
 
     optimizer.zero_grad(set_to_none=True)
@@ -208,9 +244,14 @@ def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> 
             scheduler.step()
             optimizer.zero_grad(set_to_none=True)
             total_steps += 1
+            train_loss = group_loss / group_size
+            writer.add_scalar("train/loss", train_loss, total_steps)
+            writer.add_scalar("train/learning_rate", scheduler.get_last_lr()[0], total_steps)
+            writer.add_scalar("train/epoch", epoch + 1, total_steps)
+            writer.flush()
             print(
                 f"epoch {epoch + 1}/{config.epochs} | "
-                f"step {total_steps} | loss {group_loss / group_size:.6f}",
+                f"step {total_steps} | loss {train_loss:.6f}",
                 flush=True,
             )
 
@@ -220,6 +261,8 @@ def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> 
                     f"step {total_steps} | validation_loss {validation:.6f}",
                     flush=True,
                 )
+                writer.add_scalar("validation/loss", validation, total_steps)
+                writer.flush()
                 while next_validation <= total_steps:
                     next_validation += config.validation_interval_steps
 
@@ -256,3 +299,4 @@ def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> 
                 )
 
     save_adapter_checkpoint(student, tokenizer, checkpoint, config)
+    writer.close()
