@@ -122,4 +122,7 @@ python -m benchmarks.run_benchmark \
     --batch-size 4
 ```
 
-Replace `hellaswag` with `mmlu` or `ifeval` as needed. Use `--method original` for the teacher or `--method perturbed` for the degraded model.
+Replace `hellaswag` with `mmlu` or `ifeval` as needed. Use `--method original`
+for the teacher, `--method degraded` for the supplied degraded checkpoint
+(whether it was created by perturbation or quantization), or
+`--method recovered` for the degraded checkpoint with the LoRA adapter applied.

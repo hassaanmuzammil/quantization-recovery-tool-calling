@@ -1,4 +1,4 @@
-"""Run original, perturbed, or recovered models on a supported benchmark."""
+"""Run original, degraded, or recovered models on a supported benchmark."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from src.adapters import add_lora_adapters
 
 
 BENCHMARKS = ("hellaswag", "ifeval", "mmlu")
-METHODS = ("original", "perturbed", "recovered")
+METHODS = ("original", "degraded", "recovered")
 DEFAULT_MODEL = "meta-llama/Llama-3.2-1B-Instruct"
 DEFAULT_DEGRADED_MODEL = (
     "~/.cache/huggingface/hub/"
@@ -54,7 +54,7 @@ def _model_shortname(model_name: str) -> str:
     return Path(model_name.rstrip("/")).name.replace(".", "_").replace("-", "_")
 
 
-def _load_perturbed_model(args: argparse.Namespace):
+def _load_degraded_model(args: argparse.Namespace):
     return AutoModelForCausalLM.from_pretrained(
         Path(args.degraded_model).expanduser(),
         torch_dtype=_torch_dtype(args.dtype),
@@ -112,8 +112,8 @@ def main() -> None:
         output_dir = Path(__file__).resolve().parent / "outputs" / f"{args.benchmark}_{model_shortname}"
     else:
         model = (
-            _load_perturbed_model(args)
-            if args.method == "perturbed"
+            _load_degraded_model(args)
+            if args.method == "degraded"
             else _load_recovered_model(args)
         )
         task_kwargs["model"] = HFLM(
