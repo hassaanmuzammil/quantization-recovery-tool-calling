@@ -24,7 +24,7 @@ class RecoverLoRAConfig:
     epochs: int = 3
     synthetic_samples: int = 120_000
     greedy_tokens: int = 5
-    max_sequence_length: int = 256
+    max_sequence_length: int = 2048
     temperature: float = 1.0
     top_p: float = 0.9
     seed: int = 1234

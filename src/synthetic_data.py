@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from tqdm import tqdm
 from pathlib import Path
 import torch
 from torch import nn
@@ -30,7 +31,8 @@ def generate_greedy_prefix(model: nn.Module, tokenizer, config: RecoverLoRAConfi
 @torch.no_grad()
 def generate_hybrid_sample(
     model: nn.Module, tokenizer, config: RecoverLoRAConfig, prefix: torch.Tensor
-) -> str:
+) -> list[str]:
+    prefix = prefix.repeat(config.batch_size, 1)
     continuation = model.generate(
         input_ids=prefix,
         attention_mask=torch.ones_like(prefix),
@@ -40,7 +42,7 @@ def generate_hybrid_sample(
         top_p=config.top_p,
         pad_token_id=tokenizer.eos_token_id,
     )
-    return tokenizer.decode(continuation[0], skip_special_tokens=True)
+    return tokenizer.batch_decode(continuation, skip_special_tokens=True)
 
 
 def generate_synthetic_data(config: RecoverLoRAConfig, output: Path) -> None:
@@ -51,6 +53,7 @@ def generate_synthetic_data(config: RecoverLoRAConfig, output: Path) -> None:
     print(f"Greedy prefix: {tokenizer.decode(prefix[0], skip_special_tokens=True)}", flush=True)
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("a", encoding="utf-8") as handle:
-        for _ in range(config.synthetic_samples):
-            text = generate_hybrid_sample(model, tokenizer, config, prefix)
-            handle.write(json.dumps({"text": text}, ensure_ascii=False) + "\n")
+        for _ in tqdm(range(0, config.synthetic_samples, config.batch_size)):
+            texts = generate_hybrid_sample(model, tokenizer, config, prefix)
+            for text in texts:
+                handle.write(json.dumps({"text": text}, ensure_ascii=False) + "\n")
