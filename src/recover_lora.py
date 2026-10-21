@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 from pathlib import Path
 
 from .adapters import LoRALinear, add_lora_adapters
@@ -31,7 +32,42 @@ def save_degraded_model(config: RecoverLoRAConfig) -> None:
     destination = Path(config.degraded_model)
     destination.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(destination)
-    load_tokenizer(config.teacher_model).save_pretrained(destination)
+
+    # Do not reserialize the tokenizer with the training environment's
+    # Transformers version.  Newer versions can write Qwen's
+    # ``extra_special_tokens`` as a list, while BFCL's environment expects the
+    # older mapping format and fails with ``list has no attribute keys``.
+    # Copy the tokenizer artifacts from the teacher checkpoint verbatim so the
+    # degraded checkpoint stays compatible with both environments.
+    teacher_path = Path(config.teacher_model)
+    tokenizer_files = (
+        "tokenizer.json",
+        "tokenizer_config.json",
+        "special_tokens_map.json",
+        "added_tokens.json",
+        "chat_template.jinja",
+    )
+    copied_tokenizer_files = 0
+    for filename in tokenizer_files:
+        source = teacher_path / filename
+        target = destination / filename
+        if source.is_file():
+            shutil.copy2(source, target)
+            copied_tokenizer_files += 1
+    if copied_tokenizer_files == 0:
+        # Hub model IDs and snapshot paths may not expose files directly as a
+        # normal Path.  Fall back to Transformers' resolver in that case.
+        load_tokenizer(config.teacher_model).save_pretrained(destination)
+        tokenizer_config = destination / "tokenizer_config.json"
+        if tokenizer_config.is_file():
+            tokenizer_data = json.loads(tokenizer_config.read_text(encoding="utf-8"))
+            if isinstance(tokenizer_data.get("extra_special_tokens"), list):
+                tokenizer_data.pop("extra_special_tokens")
+                tokenizer_config.write_text(
+                    json.dumps(tokenizer_data, indent=2, ensure_ascii=False) + "\n",
+                    encoding="utf-8",
+                )
+
     (destination / "degradation_config.json").write_text(
         json.dumps(
             {
