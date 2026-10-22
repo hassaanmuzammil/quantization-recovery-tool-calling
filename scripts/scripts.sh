@@ -16,6 +16,11 @@ python -m src.prepare_degraded \
     --bits 2 \
     --group-size 32
 
+python -m src.verify_quantization \
+  --model ~/.cache/huggingface/hub/models--Qwen--Qwen3-4B-Instruct-2507-q2-gate-up-g32 \
+  --bits 2 \
+  --group-size 32
+
 python -m src.recover_lora \
   --teacher-model ~/.cache/huggingface/hub/models--Qwen--Qwen3-4B-Instruct-2507/snapshots/cdbee75f17c01a7cc42f958dc650907174af0554 \
   --output-dir outputs/recover_lora \

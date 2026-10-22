@@ -223,4 +223,7 @@ __marimo__/
 # Custom
 outputs/
 experiments/
+datasets/
 extra/
+logs/
+ckpts/
