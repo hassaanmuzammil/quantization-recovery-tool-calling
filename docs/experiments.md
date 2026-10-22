@@ -1,6 +1,6 @@
 # Experiments
 
-## Experiment 1: Recover-LoRA Performance Recovery (Basic test)
+## Experiment 1: Llama3.2-1B Performance Recovery (Random Weights Perturbation)
 
 **Description:** Test whether LoRA adapters trained with knowledge distillation can recover performance lost after degrading model using random weights perturbation.
 
@@ -39,9 +39,7 @@ All three model states were evaluated on the same benchmark examples: 10,042 for
 The one-epoch Recover-LoRA run recovered a substantial portion of the HellaSwag degradation (64.6% accuracy recovery), but much less on MMLU (21.9%) and IFEval (18.2–24.9% depending on the metric). This suggests the adapter can restore some general behavior, while recovering broader knowledge and instruction-following reliability remains more difficult under the current synthetic-data and short-training setup.
 
 
-## Experiment 2: Qwen3-4B gate/up 2-bit recovery on HellaSwag
-
-Date: 2026-10-22
+## Experiment 2: Qwen3-4B Performance Recovery (Gate/Up 2-bit quantization)
 
 ### Training configuration
 
