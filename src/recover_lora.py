@@ -15,7 +15,7 @@ from .model_utils import load_model, load_tokenizer, set_seed
 from .random_perturbation import perturb_kv_projections
 from .recover_config import RecoverLoRAConfig
 from .synthetic_data import generate_hybrid_sample, generate_synthetic_data
-from .training import train
+from .training import _resolve_lora_targets, train
 
 
 def save_degraded_model(config: RecoverLoRAConfig) -> None:
@@ -174,6 +174,8 @@ def main() -> None:
         save_every_steps=getattr(args, "save_every_steps", 1000),
         resume=getattr(args, "resume", False),
     )
+    if args.command == "train":
+        config = _resolve_lora_targets(config)
     print(
         "\n========== EFFECTIVE TRAINING CONFIG ==========\n"
         + json.dumps(

@@ -120,7 +120,7 @@ def _resolve_lora_targets(config: RecoverLoRAConfig) -> RecoverLoRAConfig:
     except KeyError as exc:
         raise ValueError(f"Unsupported degradation method in {metadata_path}: {method}") from exc
     print(f"Using LoRA targets {targets} for degradation method {method}", flush=True)
-    return replace(config, lora_targets=targets)
+    return replace(config, degradation_method=method, lora_targets=targets)
 
 
 def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> None:

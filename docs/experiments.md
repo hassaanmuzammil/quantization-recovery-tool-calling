@@ -37,3 +37,35 @@ All three model states were evaluated on the same benchmark examples: 10,042 for
 ### Takeaway
 
 The one-epoch Recover-LoRA run recovered a substantial portion of the HellaSwag degradation (64.6% accuracy recovery), but much less on MMLU (21.9%) and IFEval (18.2–24.9% depending on the metric). This suggests the adapter can restore some general behavior, while recovering broader knowledge and instruction-following reliability remains more difficult under the current synthetic-data and short-training setup.
+
+
+## Experiment 2: Qwen3-4B gate/up 2-bit recovery on HellaSwag
+
+Date: 2026-10-22
+
+### Training configuration
+
+- Teacher: Qwen3-4B-Instruct-2507
+- Degraded model: Qwen3-4B-Instruct-2507, gate/up projections quantized to 2 bits with group size 32
+- Recovery method: LoRA distillation
+- LoRA targets used: `gate_proj`, `up_proj`
+- Batch size: 2
+- Gradient accumulation: 32
+- Epochs: 1
+- Training dataset: openhermes-10k
+- Training examples: 9,500
+- Validation examples: 500
+- Learning rate: `1e-5`
+- LoRA rank/alpha: 64/64
+- Sequence length: 2,048
+- Checkpoints: `ckpts/qwen3_4b_q2_gate_up_g32_openhermes/`
+
+### HellaSwag results
+
+| Model | `acc,none` | `acc_norm,none`
+| --- | ---: | ---: | --- | 
+| Original | 0.525493 | 0.690998
+| Degraded | 0.399920 | 0.521111
+| LoRA recovered | 0.483071 | 0.642900
+
+The recovered model regained approximately 71.7% of the degraded model's lost normalized accuracy, moving from 0.521111 to 0.642900 compared with the original 0.690998.
