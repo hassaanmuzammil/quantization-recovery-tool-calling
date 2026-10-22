@@ -62,10 +62,7 @@ Date: 2026-10-22
 
 ### HellaSwag results
 
-| Model | `acc,none` | `acc_norm,none`
-| --- | ---: | ---: | --- | 
-| Original | 0.525493 | 0.690998
-| Degraded | 0.399920 | 0.521111
-| LoRA recovered | 0.483071 | 0.642900
-
-The recovered model regained approximately 71.7% of the degraded model's lost normalized accuracy, moving from 0.521111 to 0.642900 compared with the original 0.690998.
+| Dataset | Original | Degraded | Recovered | Recovery % |
+| ---------------- | -------- | -------- | --------- | ---------- |
+| Hellaswag `acc,none`       | 52.55%   | 39.99%   | 48.31%    | 66.22%     |
+| Hellaswag `acc_norm,none`  | 69.10%   | 52.11%   | 64.29%    | 71.69%     |
