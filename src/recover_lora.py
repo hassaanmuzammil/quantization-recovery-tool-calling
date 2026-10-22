@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+from dataclasses import asdict
 from pathlib import Path
 
 from .adapters import LoRALinear, add_lora_adapters
@@ -125,13 +126,13 @@ def _parser() -> argparse.ArgumentParser:
         help="TensorBoard log directory (defaults to <output-dir>/logs)",
     )
     train_parser.add_argument("--gradient-accumulation-steps", type=int, default=32)
-    train_parser.add_argument("--validation-split", type=float, default=0.1)
-    train_parser.add_argument("--validation-interval-steps", type=int, default=100)
+    train_parser.add_argument("--validation-split", type=float, default=0.05)
+    train_parser.add_argument("--validation-interval-steps", type=int, default=50)
     train_parser.add_argument("--epochs", type=int, default=1)
     train_parser.add_argument(
         "--save-every-steps",
         type=int,
-        default=1000,
+        default=50,
         help="Save a resumable checkpoint every N optimizer steps (0 disables periodic saves)",
     )
     train_parser.add_argument(
@@ -172,6 +173,17 @@ def main() -> None:
         epochs=getattr(args, "epochs", 3),
         save_every_steps=getattr(args, "save_every_steps", 1000),
         resume=getattr(args, "resume", False),
+    )
+    print(
+        "\n========== EFFECTIVE TRAINING CONFIG ==========\n"
+        + json.dumps(
+            asdict(config),
+            indent=4,
+            sort_keys=True,
+            default=str,
+        )
+        + "\n===============================================",
+        flush=True,
     )
     if args.command == "prepare-degraded":
         save_degraded_model(config)

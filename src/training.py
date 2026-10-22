@@ -195,7 +195,7 @@ def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> 
     start_epoch = 0
     start_group_start = 0
     if config.resume:
-        resume_dir = checkpoint / "checkpoints" / "_latest"
+        resume_dir = checkpoint / "_latest"
         state_path = resume_dir / "training_state.pt"
         adapter_path = resume_dir / "adapter_model.pt"
         if not state_path.exists() or not adapter_path.exists():
@@ -272,7 +272,7 @@ def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> 
                 if next_group_start >= len(epoch_batches):
                     next_epoch += 1
                     next_group_start = 0
-                periodic_checkpoint = checkpoint / "checkpoints" / f"_{total_steps}"
+                periodic_checkpoint = checkpoint / f"_{total_steps}"
                 _save_training_checkpoint(
                     student,
                     tokenizer,
@@ -288,7 +288,7 @@ def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> 
                 _save_training_checkpoint(
                     student,
                     tokenizer,
-                    checkpoint / "checkpoints" / "_latest",
+                    checkpoint / "_latest",
                     config,
                     optimizer,
                     scheduler,

@@ -17,11 +17,11 @@ class RecoverLoRAConfig:
     learning_rate: float = 5e-4
     batch_size: int = 4
     gradient_accumulation_steps: int = 32
-    validation_split: float = 0.1
-    validation_interval_steps: int = 500
-    save_every_steps: int = 500
+    validation_split: float = 0.05
+    validation_interval_steps: int = 50
+    save_every_steps: int = 50
     resume: bool = False
-    warmup_steps: int = 80
+    warmup_steps: int = 10
     epochs: int = 3
     synthetic_samples: int = 120_000
     greedy_tokens: int = 5

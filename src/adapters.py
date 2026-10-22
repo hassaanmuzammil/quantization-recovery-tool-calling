@@ -70,5 +70,10 @@ def save_adapter_checkpoint(model: nn.Module, tokenizer, checkpoint: Path, confi
         "lora_alpha": config.lora_alpha,
     }
     (checkpoint / "adapter_config.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
-    (checkpoint / "recover_lora_config.json").write_text(json.dumps(asdict(config), indent=2), encoding="utf-8")
+    # Some CLI arguments (for example ``--log-dir``) are parsed as ``Path``
+    # objects.  Serialize those values as strings in the JSON metadata.
+    (checkpoint / "recover_lora_config.json").write_text(
+        json.dumps(asdict(config), indent=2, default=str),
+        encoding="utf-8",
+    )
     tokenizer.save_pretrained(checkpoint)
