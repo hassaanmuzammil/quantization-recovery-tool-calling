@@ -2,9 +2,12 @@
 
 ## Experiment 1: Llama3.2-1B Performance Recovery (Random Weights Perturbation)
 
-**Description:** Test whether LoRA adapters trained with knowledge distillation can recover performance lost after degrading model using random weights perturbation.
+### Description
 
-### Training setup
+Test whether LoRA adapters trained with knowledge distillation can recover
+performance lost after degrading the model with random weight perturbations.
+
+### Training configuration
 
 - Teacher: `meta-llama/Llama-3.2-1B-Instruct`
 - Student: degraded Llama checkpoint created by adding random noise to weights
@@ -24,15 +27,15 @@
 
 All three model states were evaluated on the same benchmark examples: 10,042 for HellaSwag, 14,042 for MMLU, and 541 for IFEval.
 
-| Benchmark / metric | Original | Degraded | Recovered + LoRA | Recovery |
-|---|---:|---:|---:|---:|
-| HellaSwag accuracy | 45.72% | 29.82% | 40.10% | 64.6% |
-| HellaSwag normalized accuracy | 61.57% | 35.20% | 50.88% | 59.4% |
-| MMLU accuracy | 48.40% | 23.50% | 28.96% | 21.9% |
-| IFEval prompt-level strict | 49.72% | 13.86% | 21.07% | 20.1% |
-| IFEval instruction-level strict | 63.19% | 24.70% | 34.29% | 24.9% |
-| IFEval prompt-level loose | 53.79% | 15.16% | 22.18% | 18.2% |
-| IFEval instruction-level loose | 66.43% | 25.66% | 35.61% | 24.4% |
+| Dataset | Category | Original | Degraded | Recovered + LoRA | Recovery % |
+|---|---|---:|---:|---:|---:|
+| HellaSwag | Accuracy | 45.72% | 29.82% | 40.10% | 64.6% |
+| HellaSwag | Normalized accuracy | 61.57% | 35.20% | 50.88% | 59.4% |
+| MMLU | Accuracy | 48.40% | 23.50% | 28.96% | 21.9% |
+| IFEval | Prompt-level strict | 49.72% | 13.86% | 21.07% | 20.1% |
+| IFEval | Instruction-level strict | 63.19% | 24.70% | 34.29% | 24.9% |
+| IFEval | Prompt-level loose | 53.79% | 15.16% | 22.18% | 18.2% |
+| IFEval | Instruction-level loose | 66.43% | 25.66% | 35.61% | 24.4% |
 
 ### Takeaway
 
@@ -40,6 +43,11 @@ The one-epoch Recover-LoRA run recovered a substantial portion of the HellaSwag 
 
 
 ## Experiment 2: Qwen3-4B Performance Recovery (Gate/Up 2-bit quantization)
+
+### Description
+
+Test whether LoRA distillation can recover general capability and tool-calling
+reliability after quantizing the model's gate/up projections to 2-bit precision.
 
 ### Training configuration
 
@@ -50,7 +58,7 @@ The one-epoch Recover-LoRA run recovered a substantial portion of the HellaSwag 
 - Batch size: 2
 - Gradient accumulation: 32
 - Epochs: 1
-- Training dataset: openhermes-10k
+- Training dataset: first 10,000 examples from OpenHermes (`openhermes-10k`)
 - Training examples: 9,500
 - Validation examples: 500
 - Learning rate: `1e-5`
@@ -58,16 +66,32 @@ The one-epoch Recover-LoRA run recovered a substantial portion of the HellaSwag 
 - Sequence length: 2,048
 - Checkpoints: `ckpts/qwen3_4b_q2_gate_up_g32_openhermes/`
 
-### Combined benchmark results
+### Results
 
 | Dataset | Category | Original | Degraded | Recovered + LoRA | Recovery % |
 |---|---|---:|---:|---:|---:|
 | HellaSwag | `acc,none` | 52.55% | 39.99% | 48.31% | 66.22% |
 | HellaSwag | `acc_norm,none` | 69.10% | 52.11% | 64.29% | 71.69% |
 | BFCL | `live_simple` | 77.91% | 0.00% | 1.94% | 2.49% |
-| MMLU | `acc,none` | 70.55% | 48.48% | 62.43% | 63.25% |
+| MMLU | Overall accuracy | 70.55% | 48.48% | 62.43% | 63.25% |
+| MMLU | STEM | 71.55% | 46.88% | 62.64% | 63.88% |
+| MMLU | Other | 74.54% | 52.01% | 66.72% | 65.29% |
+| MMLU | Social sciences | 80.47% | 56.71% | 71.63% | 62.79% |
+| MMLU | Humanities | 60.74% | 41.83% | 53.45% | 61.46% |
+| IFEval | Prompt-level strict | 83.36% | 49.54% | 74.68% | 74.32% |
+| IFEval | Instruction-level strict | 88.37% | 62.83% | 82.13% | 75.59% |
+| IFEval | Prompt-level loose | 86.51% | 53.79% | 77.82% | 73.45% |
+| IFEval | Instruction-level loose | 90.41% | 66.07% | 84.53% | 75.86% |
 
 The recovered adapter improved BFCL `live_simple` performance by 1.94
 percentage points over the degraded 2-bit model, but remained substantially
 below the BF16 baseline. Recovery percentage is computed as
 `(recovered - degraded) / (original - degraded) × 100`.
+
+### Takeaway
+
+The Qwen3 adapter recovered 63.25% of the MMLU accuracy lost to 2-bit
+quantization and approximately 73–76% of the IFEval performance loss. In
+contrast, it recovered only 2.49% of the lost BFCL `live_simple` performance,
+indicating that recovery transferred more effectively to general knowledge and
+instruction-following evaluation than to format-sensitive tool calling.
