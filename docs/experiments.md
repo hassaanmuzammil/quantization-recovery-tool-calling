@@ -58,9 +58,15 @@ The one-epoch Recover-LoRA run recovered a substantial portion of the HellaSwag 
 - Sequence length: 2,048
 - Checkpoints: `ckpts/qwen3_4b_q2_gate_up_g32_openhermes/`
 
-### HellaSwag results
+### Combined benchmark results
 
-| Dataset | Original | Degraded | Recovered | Recovery % |
-| ---------------- | -------- | -------- | --------- | ---------- |
-| Hellaswag `acc,none`       | 52.55%   | 39.99%   | 48.31%    | 66.22%     |
-| Hellaswag `acc_norm,none`  | 69.10%   | 52.11%   | 64.29%    | 71.69%     |
+| Dataset | Category | Original | Degraded | Recovered + LoRA | Recovery % |
+|---|---|---:|---:|---:|---:|
+| HellaSwag | `acc,none` | 52.55% | 39.99% | 48.31% | 66.22% |
+| HellaSwag | `acc_norm,none` | 69.10% | 52.11% | 64.29% | 71.69% |
+| BFCL | `live_simple` | 77.91% | 0.00% | 1.94% | 2.49% |
+
+The recovered adapter improved BFCL `live_simple` performance by 1.94
+percentage points over the degraded 2-bit model, but remained substantially
+below the BF16 baseline. Recovery percentage is computed as
+`(recovered - degraded) / (original - degraded) × 100`.

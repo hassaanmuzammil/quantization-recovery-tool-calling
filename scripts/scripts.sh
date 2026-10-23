@@ -39,24 +39,24 @@ python -m src.recover_lora \
   --checkpoint outputs/recover_lora/ckpts/adapter \
   --log-dir outputs/recover_lora/logs
 
+python -m src.merge_recover_lora \
+  --base-model ~/.cache/huggingface/hub/models--Qwen--Qwen3-4B-Instruct-2507-q2-gate-up-g32 \
+  --adapter-dir ~/Desktop/quantization-recovery-tool-calling/ckpts/qwen3_4b_q2_gate_up_g32_openhermes/_latest \
+  --output-dir ~/.cache/huggingface/hub/models--Qwen--Qwen3-4B-Instruct-2507-q2-gate-up-g32-openhermes \
+  --dtype bfloat16
+
 bfcl generate \
   --model Qwen/Qwen3-4B-Instruct-2507 \
-  --test-category simple_python \
+  --test-category live_simple \
   --backend sglang \
   --num-gpus 1 \
   --local-model-path ~/.cache/huggingface/hub/models--Qwen--Qwen3-4B-Instruct-2507/snapshots/cdbee75f17c01a7cc42f958dc650907174af0554 \
-  --gpu-memory-utilization 0.75
+  --gpu-memory-utilization 0.75 \
+  --result-dir result/qwen_bf16 \
+  --allow-overwrite
 
 bfcl evaluate \
   --model Qwen/Qwen3-4B-Instruct-2507 \
-  --test-category all
-
-bfcl generate \
-  --model Qwen/Qwen3-4B-Instruct-2507 \
-  --test-category live_multiple,live_irrelevance,live_simple,live_parallel,live_relevance \
-  --backend sglang \
-  --num-gpus 1 \
-  --local-model-path /home/018768243@SJSUAD/.cache/huggingface/hub/models--Qwen--Qwen3-4B-Instruct-2507-q2-gate-up-g32 \
-  --gpu-memory-utilization 0.75 \
-  --result-dir results/qwen_q2_gate_up_g32 \
-  --allow-overwrite
+  --test-category live_simple \
+  --result-dir result/qwen_bf16 \
+  --score-dir score/qwen_bf16
