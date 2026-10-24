@@ -298,5 +298,16 @@ def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> 
                     next_validation,
                 )
 
-    save_adapter_checkpoint(student, tokenizer, checkpoint, config)
+    _save_training_checkpoint(
+        student,
+        tokenizer,
+        checkpoint / "_latest",
+        config,
+        optimizer,
+        scheduler,
+        total_steps,
+        config.epochs,
+        0,
+        next_validation,
+    )
     writer.close()
