@@ -95,3 +95,18 @@ quantization and approximately 73–76% of the IFEval performance loss. In
 contrast, it recovered only 2.49% of the lost BFCL `live_simple` performance,
 indicating that recovery transferred more effectively to general knowledge and
 instruction-following evaluation than to format-sensitive tool calling.
+
+## Experiment 3: Qwen3-4B Tool-Calling Recovery with xLAM Data
+
+This experiment repeats Experiment 2 with the same model, 2-bit gate/up
+quantization, LoRA configuration, training budget, and evaluation procedure.
+The only changed control is the recovery dataset: the first 10,000 examples
+from xLAM function-calling data replace OpenHermes.
+
+| Dataset | Category | Original | Degraded | Recovered + LoRA |
+|---|---|---:|---:|---:|
+| BFCL | `live_simple` | 77.91% | 0.00% | 0.39% |
+
+The xLAM-trained adapter recovered only 0.50% of the lost BFCL performance,
+providing additional evidence that 2-bit quantization is unsuitable for
+reliable tool calling under this setup.
