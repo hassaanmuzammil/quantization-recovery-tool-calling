@@ -3,6 +3,7 @@ from pathlib import Path
 
 from datasets import load_dataset
 from tqdm import tqdm
+from transformers import AutoTokenizer
 
 # ==========================================
 # Configuration
@@ -13,6 +14,9 @@ DATASET_NAME = "xlam"  # "fineweb-edu", "c4", "openhermes", "xlam"
 NUM_EXAMPLES = 10_000
 SEED = 42
 OUTPUT_DIR = Path("datasets")
+
+# Tokenizer whose chat template is used to render xLAM tool calls.
+CHAT_TEMPLATE_MODEL = "Qwen/Qwen3-4B-Instruct-2507"
 
 # ==========================================
 # Dataset configurations
@@ -68,6 +72,60 @@ if DATASET_NAME == "xlam":
         range(min(NUM_EXAMPLES, len(dataset)))
     )
 
+    tokenizer = AutoTokenizer.from_pretrained(CHAT_TEMPLATE_MODEL)
+
+# ==========================================
+# xLAM -> JSON schema conversion
+# ==========================================
+
+def xlam_type_to_json_type(xlam_type):
+    base = xlam_type.split(",")[0].strip().lower()
+
+    if base in ("str", "string"):
+        return "string"
+    if base == "int":
+        return "integer"
+    if base == "float":
+        return "number"
+    if base == "bool":
+        return "boolean"
+    if base.startswith(("list", "tuple", "set")):
+        return "array"
+    if base.startswith("dict"):
+        return "object"
+
+    # Callable, free-form, or malformed types.
+    return "string"
+
+
+def xlam_tool_to_json_schema(tool):
+    properties = {}
+    required = []
+
+    for name, param in tool.get("parameters", {}).items():
+        xlam_type = param.get("type", "str")
+
+        properties[name] = {
+            "type": xlam_type_to_json_type(xlam_type),
+            "description": param.get("description", ""),
+        }
+
+        if "optional" not in xlam_type.lower():
+            required.append(name)
+
+    return {
+        "type": "function",
+        "function": {
+            "name": tool["name"],
+            "description": tool.get("description", ""),
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": required,
+            },
+        },
+    }
+
 # ==========================================
 # Extract text
 # ==========================================
@@ -94,16 +152,35 @@ def extract_text(example):
         if isinstance(answers, str):
             answers = json.loads(answers)
 
-        text = (
-            "Available tools:\n"
-            + json.dumps(tools, ensure_ascii=False, indent=2)
-            + "\n\nUser query:\n"
-            + query.strip()
-            + "\n\nTool calls:\n"
-            + json.dumps(answers, ensure_ascii=False)
-        )
+        # Render in the model's native tool-calling format:
+        # <tools>...</tools> in the system turn, <tool_call>...</tool_call>
+        # in the assistant turn.
+        messages = [
+            {
+                "role": "user", 
+                "content": query.strip()
+            },
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": answer["name"],
+                            "arguments": answer.get("arguments", {}),
+                        },
+                    }
+                    for answer in answers
+                ],
+            },
+        ]
 
-        return text
+        return tokenizer.apply_chat_template(
+            messages,
+            tools=[xlam_tool_to_json_schema(tool) for tool in tools],
+            tokenize=False,
+        )
 
     return example.get("text", "").strip()
 

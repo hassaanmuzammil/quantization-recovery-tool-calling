@@ -61,7 +61,7 @@ reliability after quantizing the model's gate/up projections to 2-bit precision.
 - Training dataset: first 10,000 examples from OpenHermes (`openhermes-10k`)
 - Training examples: 9,500
 - Validation examples: 500
-- Learning rate: `1e-5`
+- Learning rate: `5e-4`
 - LoRA rank/alpha: 64/64
 - Sequence length: 2,048
 - Checkpoints: `ckpts/qwen3_4b_q2_gate_up_g32_openhermes/`

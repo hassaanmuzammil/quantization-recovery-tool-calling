@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
-from dataclasses import asdict
+from dataclasses import asdict, fields
 from pathlib import Path
 
 from .adapters import LoRALinear, add_lora_adapters
@@ -84,62 +84,76 @@ def save_degraded_model(config: RecoverLoRAConfig) -> None:
     )
 
 
+def _lora_targets(value: str) -> tuple[str, ...]:
+    return tuple(part.strip() for part in value.split(",") if part.strip())
+
+
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Recover-LoRA pipeline")
-    parser.add_argument("--teacher-model", default="Qwen/Qwen3-4B-Instruct-2507")
-    parser.add_argument("--degraded-model", default="outputs/degraded_model")
-    parser.add_argument("--output-dir", default="outputs/recover_lora")
+    # Defaults live in RecoverLoRAConfig.  Every option that maps to a config
+    # field uses ``argparse.SUPPRESS`` so it only overrides the config when it
+    # is passed explicitly, and its ``dest`` matches the config field name.
+    parser = argparse.ArgumentParser(description="Recover-LoRA pipeline", argument_default=argparse.SUPPRESS)
+    parser.add_argument("--teacher-model", dest="teacher_model")
+    parser.add_argument("--degraded-model", dest="degraded_model")
+    parser.add_argument("--output-dir", dest="output_dir")
     parser.add_argument(
         "--log-dir",
-        default=None,
+        dest="log_dir",
         help="TensorBoard log directory (defaults to <output-dir>/logs)",
     )
-    parser.add_argument("--device", default="cuda:0")
-    parser.add_argument("--dtype", choices=("float32", "float16", "bfloat16"), default="bfloat16")
+    parser.add_argument("--device")
+    parser.add_argument("--dtype", choices=("float32", "float16", "bfloat16"))
     parser.add_argument(
         "--lora-targets",
-        default=None,
+        dest="lora_targets",
+        type=_lora_targets,
         help="Override adapter targets (otherwise inferred from degraded checkpoint metadata)",
     )
-    parser.add_argument("--synthetic-samples", type=int, default=120_000)
-    parser.add_argument("--batch-size", type=int, default=4)
-    parser.add_argument("--seed", type=int, default=1234)
+    parser.add_argument("--synthetic-samples", dest="synthetic_samples", type=int)
+    parser.add_argument("--batch-size", dest="batch_size", type=int)
+    parser.add_argument("--max-sequence-length", dest="max_sequence_length", type=int)
+    parser.add_argument("--seed", type=int)
     subparsers = parser.add_subparsers(dest="command", required=True)
-    prepare_parser = subparsers.add_parser("prepare-degraded")
+    prepare_parser = subparsers.add_parser("prepare-degraded", argument_default=argparse.SUPPRESS)
     prepare_parser.add_argument(
         "--method",
+        dest="degradation_method",
         choices=("random-perturbation", "gate-up-quantization"),
-        default="random-perturbation",
         help="How to degrade the teacher checkpoint",
     )
-    prepare_parser.add_argument("--noise-std", type=float, default=0.01)
-    prepare_parser.add_argument("--group-size", type=int, default=32)
-    prepare_parser.add_argument("--bits", type=int, choices=(2, 4), default=2)
-    subparsers.add_parser("generate-synthetic")
-    train_parser = subparsers.add_parser("train")
+    prepare_parser.add_argument("--noise-std", dest="perturbation_std", type=float)
+    prepare_parser.add_argument("--group-size", dest="quantization_group_size", type=int)
+    prepare_parser.add_argument("--bits", dest="quantization_bits", type=int, choices=(2, 4))
+    generate_parser = subparsers.add_parser("generate-synthetic", argument_default=argparse.SUPPRESS)
+    generate_parser.add_argument("--greedy-tokens", dest="greedy_tokens", type=int)
+    generate_parser.add_argument("--temperature", type=float)
+    generate_parser.add_argument("--top-p", dest="top_p", type=float)
+    train_parser = subparsers.add_parser("train", argument_default=argparse.SUPPRESS)
     train_parser.add_argument("--synthetic-data", required=True, type=Path)
-    train_parser.add_argument("--checkpoint", type=Path)
+    train_parser.add_argument("--checkpoint", type=Path, default=None)
     train_parser.add_argument(
         "--log-dir",
-        type=Path,
-        default=argparse.SUPPRESS,
+        dest="log_dir",
         help="TensorBoard log directory (defaults to <output-dir>/logs)",
     )
-    train_parser.add_argument("--gradient-accumulation-steps", type=int, default=32)
-    train_parser.add_argument("--validation-split", type=float, default=0.05)
-    train_parser.add_argument("--validation-interval-steps", type=int, default=50)
-    train_parser.add_argument("--epochs", type=int, default=1)
+    train_parser.add_argument("--lora-rank", dest="lora_rank", type=int)
+    train_parser.add_argument("--lora-alpha", dest="lora_alpha", type=int)
+    train_parser.add_argument("--learning-rate", dest="learning_rate", type=float)
+    train_parser.add_argument("--warmup-steps", dest="warmup_steps", type=int)
+    train_parser.add_argument("--gradient-accumulation-steps", dest="gradient_accumulation_steps", type=int)
+    train_parser.add_argument("--validation-split", dest="validation_split", type=float)
+    train_parser.add_argument("--validation-interval-steps", dest="validation_interval_steps", type=int)
+    train_parser.add_argument("--epochs", type=int)
     train_parser.add_argument(
         "--save-every-steps",
+        dest="save_every_steps",
         type=int,
-        default=50,
         help="Save a resumable checkpoint every N optimizer steps (0 disables periodic saves)",
     )
     train_parser.add_argument(
         "--resume",
         nargs="?",
         const=True,
-        default=False,
         type=lambda value: value.lower() in {"1", "true", "yes", "on"},
         help="Resume automatically from checkpoint/_latest (also accepts --resume=True)",
     )
@@ -148,32 +162,8 @@ def _parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = _parser().parse_args()
-    config = RecoverLoRAConfig(
-        teacher_model=args.teacher_model,
-        degraded_model=args.degraded_model,
-        output_dir=args.output_dir,
-        log_dir=args.log_dir,
-        device=args.device,
-        dtype=args.dtype,
-        lora_targets=(
-            tuple(part.strip() for part in args.lora_targets.split(",") if part.strip())
-            if args.lora_targets
-            else None
-        ),
-        synthetic_samples=args.synthetic_samples,
-        seed=args.seed,
-        perturbation_std=getattr(args, "noise_std", 0.01),
-        degradation_method=getattr(args, "method", "random-perturbation"),
-        quantization_group_size=getattr(args, "group_size", 32),
-        quantization_bits=getattr(args, "bits", 2),
-        batch_size=args.batch_size,
-        gradient_accumulation_steps=getattr(args, "gradient_accumulation_steps", 32),
-        validation_split=getattr(args, "validation_split", 0.1),
-        validation_interval_steps=getattr(args, "validation_interval_steps", 100),
-        epochs=getattr(args, "epochs", 3),
-        save_every_steps=getattr(args, "save_every_steps", 1000),
-        resume=getattr(args, "resume", False),
-    )
+    config_fields = {field.name for field in fields(RecoverLoRAConfig)}
+    config = RecoverLoRAConfig(**{key: value for key, value in vars(args).items() if key in config_fields})
     if args.command == "train":
         config = _resolve_lora_targets(config)
     print(

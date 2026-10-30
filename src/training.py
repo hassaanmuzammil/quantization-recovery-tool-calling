@@ -82,7 +82,6 @@ def _validation_loss(model, teacher, tokenizer, texts, config: RecoverLoRAConfig
     if not texts:
         return float("nan")
 
-    model.eval()
     total_loss = 0.0
     total_tokens = 0
     for batch in batches(texts, config.batch_size):
@@ -256,7 +255,9 @@ def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> 
             )
 
             if validation_texts and total_steps >= next_validation:
+                student.eval()
                 validation = _validation_loss(student, teacher, tokenizer, validation_texts, config)
+                student.train()
                 print(
                     f"step {total_steps} | validation_loss {validation:.6f}",
                     flush=True,

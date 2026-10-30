@@ -5,8 +5,8 @@ from dataclasses import dataclass
 
 @dataclass
 class RecoverLoRAConfig:
-    teacher_model: str
-    degraded_model: str
+    teacher_model: str = "Qwen/Qwen3-4B-Instruct-2507"
+    degraded_model: str = "outputs/degraded_model"
     output_dir: str = "outputs/recover_lora"
     log_dir: str | None = None
     device: str = "cuda:0"
@@ -22,7 +22,7 @@ class RecoverLoRAConfig:
     save_every_steps: int = 50
     resume: bool = False
     warmup_steps: int = 10
-    epochs: int = 3
+    epochs: int = 1
     synthetic_samples: int = 120_000
     greedy_tokens: int = 5
     max_sequence_length: int = 2048
