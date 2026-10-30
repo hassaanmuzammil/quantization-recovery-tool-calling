@@ -103,10 +103,16 @@ quantization, LoRA configuration, training budget, and evaluation procedure.
 The only changed control is the recovery dataset: the first 10,000 examples
 from xLAM function-calling data replace OpenHermes.
 
-| Dataset | Category | Original | Degraded | Recovered + LoRA |
-|---|---|---:|---:|---:|
-| BFCL | `live_simple` | 77.91% | 0.00% | 0.39% |
+| Dataset | Category | Original | Degraded | Recovered + LoRA | Recovery % |
+|---|---|---:|---:|---:|---:|
+| BFCL | `live_simple` | 77.91% | 0.00% | 10.08% | 12.94% |
 
-The xLAM-trained adapter recovered only 0.50% of the lost BFCL performance,
-providing additional evidence that 2-bit quantization is unsuitable for
-reliable tool calling under this setup.
+The xLAM-trained adapter recovered 12.94% of the lost BFCL performance,
+compared with 2.49% for the OpenHermes adapter in Experiment 2, but remained
+far below the BF16 baseline.
+
+**Note:** xLAM examples must be rendered in Qwen's native tool-calling style
+(chat template with tools in a `<tools></tools>` system block and calls as
+`<tool_call>{"name": ..., "arguments": ...}</tool_call>` in the assistant
+turn). An earlier run that trained on flat text (`Available tools:` /
+`User query:` / `Tool calls:`) reached only 0.39% on `live_simple`.
