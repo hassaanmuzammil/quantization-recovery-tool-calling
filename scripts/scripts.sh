@@ -1,3 +1,18 @@
+# Allocate H100 GPU
+salloc -p GPU-shared --gres=gpu:h100-80:1 -t 03:00:00
+
+# List your jobs
+squeue -u $USER
+
+# Attach second terminal to existing allocation
+srun --jobid=JOB_ID --overlap --pty bash
+
+# Monitor GPU continuously
+watch nvidia-smi
+
+# Cancel job
+scancel JOB_ID
+
 python -m benchmarks.run_benchmark \
   --benchmark hellaswag \
   --method degraded \
