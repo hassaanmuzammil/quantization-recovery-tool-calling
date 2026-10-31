@@ -25,7 +25,8 @@ performance lost after degrading the model with random weight perturbations.
 
 ### Results
 
-All three model states were evaluated on the same benchmark examples: 10,042 for HellaSwag, 14,042 for MMLU, and 541 for IFEval.
+All three model states were evaluated on the same benchmark examples: 10,042 for HellaSwag, 14,042 for MMLU, and 541 for IFEval. Recovery percentage is computed as
+`(recovered - degraded) / (original - degraded) × 100`.
 
 | Dataset | Category | Original | Degraded | Recovered + LoRA | Recovery % |
 |---|---|---:|---:|---:|---:|
@@ -72,7 +73,6 @@ reliability after quantizing the model's gate/up projections to 2-bit precision.
 |---|---|---:|---:|---:|---:|
 | HellaSwag | `acc,none` | 52.55% | 39.99% | 48.31% | 66.22% |
 | HellaSwag | `acc_norm,none` | 69.10% | 52.11% | 64.29% | 71.69% |
-| BFCL | `live_simple` | 77.91% | 0.00% | 1.94% | 2.49% |
 | MMLU | Overall accuracy | 70.55% | 48.48% | 62.43% | 63.25% |
 | MMLU | STEM | 71.55% | 46.88% | 62.64% | 63.88% |
 | MMLU | Other | 74.54% | 52.01% | 66.72% | 65.29% |
@@ -82,37 +82,154 @@ reliability after quantizing the model's gate/up projections to 2-bit precision.
 | IFEval | Instruction-level strict | 88.37% | 62.83% | 82.13% | 75.59% |
 | IFEval | Prompt-level loose | 86.51% | 53.79% | 77.82% | 73.45% |
 | IFEval | Instruction-level loose | 90.41% | 66.07% | 84.53% | 75.86% |
+| BFCL-v4 (FC) | `live_simple` | 79.46% | 0.00% | 13.57% | 17.07% |
 
-The recovered adapter improved BFCL `live_simple` performance by 1.94
+The recovered adapter improved BFCL `live_simple` performance by ~17
 percentage points over the degraded 2-bit model, but remained substantially
-below the BF16 baseline. Recovery percentage is computed as
-`(recovered - degraded) / (original - degraded) × 100`.
+below the BF16 baseline.
+
+### BFCL failure analysis
+
+Most BFCL failures are formatting, not content. The recovered model uses the
+native `<tool_call>` format (235 of 258 outputs), which the degraded model
+never does, but it usually closes the call incorrectly: an extra `}` after the
+JSON object (128 outputs) or a missing `</tool_call>` (77 outputs). BFCL cannot
+parse these, so 207 of the 223 failures count as zero function calls.
+
+```text
+<tool_call>
+{"name": "github_star", "arguments": {"repos": "ShishirPatil/gorilla,gorilla-llm/gorilla-cli", "aligned": true}}}
+```
+
+Repairing only the formatting (rewrapping each valid call without changing
+the function name or arguments) shows how much content was recovered. The
+repaired score is a diagnostic, not an official result.
+
+| Model | Official (FC) | Formatting repaired |
+|---|---:|---:|
+| BF16 original | 79.46% | – |
+| q2, no KD | 0.00% | 11.24% |
+| q2 + OpenHermes-10k KD | 13.57% | 59.69% |
+
+General-text KD restored most of the ability to choose functions and fill
+arguments (about 75% of BF16 once repaired) and the `<tool_call>` format
+itself, but not the closing structure of the call.
 
 ### Takeaway
 
 The Qwen3 adapter recovered 63.25% of the MMLU accuracy lost to 2-bit
-quantization and approximately 73–76% of the IFEval performance loss. In
-contrast, it recovered only 2.49% of the lost BFCL `live_simple` performance,
-indicating that recovery transferred more effectively to general knowledge and
-instruction-following evaluation than to format-sensitive tool calling.
+quantization, 66–72% of the HellaSwag loss and approximately 73–76% of the
+IFEval loss. In contrast, it recovered only 17.07% of the lost BFCL
+`live_simple` performance. Most of that gap is output formatting rather than
+lost knowledge: with the formatting repaired, the recovered model reaches
+59.69%, about 75% of the BF16 score. Recovery therefore transferred well to
+general knowledge, instruction following and the content of tool calls, but
+not to the exact output structure that tool calling requires.
 
-## Experiment 3: Qwen3-4B Tool-Calling Recovery with xLAM Data
+## Experiment 3: Qwen3-4B Quantization Damage Analysis (BFCL-v4 FC mode)
 
-This experiment repeats Experiment 2 with the same model, 2-bit gate/up
-quantization, LoRA configuration, training budget, and evaluation procedure.
-The only changed control is the recovery dataset: the first 10,000 examples
-from xLAM function-calling data replace OpenHermes.
+### Description
 
-| Dataset | Category | Original | Degraded | Recovered + LoRA | Recovery % |
-|---|---|---:|---:|---:|---:|
-| BFCL | `live_simple` | 77.91% | 0.00% | 10.08% | 12.94% |
+Measure how much gate/up quantization (group size 32) damages tool calling
+before any recovery, on BFCL v4 `live_simple` (258 cases) in native
+function-calling mode.
 
-The xLAM-trained adapter recovered 12.94% of the lost BFCL performance,
-compared with 2.49% for the OpenHermes adapter in Experiment 2, but remained
-far below the BF16 baseline.
+### Results
 
-**Note:** xLAM examples must be rendered in Qwen's native tool-calling style
-(chat template with tools in a `<tools></tools>` system block and calls as
-`<tool_call>{"name": ..., "arguments": ...}</tool_call>` in the assistant
-turn). An earlier run that trained on flat text (`Available tools:` /
-`User query:` / `Tool calls:`) reached only 0.39% on `live_simple`.
+The repaired score rewraps each valid call in correct `<tool_call>` tags
+without changing the function name or arguments. It is a diagnostic that
+separates format damage from content damage, not an official result.
+
+| Model | Official (FC) | Formatting repaired |
+|---|---:|---:|
+| BF16 original | 79.46% | – |
+| q4 | 24.81% | 67.44% |
+| q2 | 0.00% | 11.24% |
+
+The BF16 score matches the official leaderboard's FC score (79.07%) to within
+one case.
+
+### Common errors
+
+- **BF16:** content errors only, such as wrong argument values or declining
+  requests it judges invalid ("McDonald's does not serve pizza…"). Its calls
+  are always well-formed.
+- **q4:** uses the `<tool_call>` format but often closes it incorrectly, with
+  an extra `}` after the JSON object or a missing `</tool_call>`, so BFCL
+  cannot parse the call:
+
+  ```text
+  <tool_call>
+  {"name": "change_food", "arguments": {"food_item": "burger", "modification_request": "no onions, extra cheese"}}}
+  </tool_call>
+  ```
+
+- **q2:** never uses `<tool_call>`. It writes calls as markdown JSON blocks,
+  falls into repetition loops, refuses, and invents function names (e.g.
+  `FindMovies` for `Movies_3_FindMovies`).
+
+### Takeaway
+
+4-bit damage is mostly formatting: once repaired, q4 keeps about 85% of the
+BF16 score. 2-bit damage is both formatting and content: even after repair,
+q2 keeps only 14%. The extra-`}` failure comes from quantization itself,
+since BF16 never produces it and q4 produces it without any recovery
+training.
+
+## Experiment 4: Domain-Specific vs General KD Data (xLAM vs OpenHermes)
+
+### Description
+
+Test whether distilling on tool-calling data recovers more tool-calling
+ability than distilling on general text. The 2-bit model is recovered twice
+with the same recipe as Experiment 2 (LoRA rank 64 on gate/up, learning rate
+`5e-4`, 1 epoch, 10,000 examples). Only the KD data differs:
+
+- **OpenHermes-10k:** general instruction text (the Experiment 2 adapter).
+- **xLAM-10k:** the first 10,000 xLAM function-calling examples, rendered in
+  Qwen's native tool-calling chat template (tools in a `<tools>` system block,
+  calls as `<tool_call>…</tool_call>` in the assistant turn).
+
+Both are evaluated on BFCL v4 `live_simple` in FC mode. The repaired score
+rewraps each valid call in correct `<tool_call>` tags without changing the
+function name or arguments; it is a diagnostic, not an official result.
+
+### Results
+
+| Model | Official (FC) | Recovery % | Formatting repaired |
+|---|---:|---:|---:|
+| BF16 original | 79.46% | – | – |
+| q2, no KD | 0.00% | – | 11.24% |
+| q2 + OpenHermes-10k KD | 13.57% | 17.07% | 59.69% |
+| q2 + xLAM-10k KD | 22.48% | 28.29% | 65.89% |
+
+xLAM beats OpenHermes by 8.91 points officially and 6.20 points after repair.
+On the 258 paired test items, both differences are statistically significant
+(exact McNemar test: p = 0.004 official, p = 0.02 repaired), but each adapter
+was trained with a single seed.
+
+Both adapters fail mainly in the same way: the call uses `<tool_call>` but is
+closed incorrectly, with an extra `}` after the JSON object or a missing
+`</tool_call>`. The xLAM training data does not contain this pattern; every
+training call is closed correctly:
+
+```text
+Training data:  {"name": "draw_cards", "arguments": {"num_draw": 5}}
+                </tool_call><|im_end|>
+Model output:   {"name": "get_user_info", "arguments": {"user_id": 7890, "special_request": "black"}}}
+```
+
+**Note:** the xLAM data must be rendered in Qwen's native tool-calling chat
+template. An earlier run on flat text (`Available tools:` / `User query:` /
+`Tool calls:`) reached only 0.39% on `live_simple`.
+
+### Takeaway
+
+Domain-specific KD data helps, but modestly. With the same 10,000-example
+budget, xLAM recovers 28.29% of the lost `live_simple` score compared with
+17.07% for OpenHermes, and about 83% of the BF16 score after repair compared
+with 75%. Most of the recovery, however, comes from distillation itself:
+general-text KD already restores the `<tool_call>` format and most of the
+ability to choose functions and fill arguments. Neither dataset fixes the
+extra-`}` closing error, which is the main remaining gap to BF16, so
+switching to domain data alone does not close it.
