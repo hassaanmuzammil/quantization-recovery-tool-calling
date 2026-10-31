@@ -4,8 +4,15 @@
 
 ### Description
 
+**Note:** This experiment was a sanity check of the KD recovery pipeline,
+done before the main project experiments. It uses a different model
+(Llama-3.2-1B) and a different degradation (random perturbation instead of
+quantization)
+
 Test whether LoRA adapters trained with knowledge distillation can recover
 performance lost after degrading the model with random weight perturbations.
+
+
 
 ### Training configuration
 
