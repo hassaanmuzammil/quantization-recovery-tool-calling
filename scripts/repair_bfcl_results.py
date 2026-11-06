@@ -7,8 +7,10 @@ For each output, the first JSON object with a string ``name`` and a dict
     {"name": ..., "arguments": {...}}
     </tool_call>
 
-The function name and arguments are never changed, and any extra keys
-next to them are dropped.  Outputs without such an object are left as is.
+For ``parallel`` categories, where several calls are expected, every such
+object is kept, each in its own ``<tool_call>`` block.  The function name
+and arguments are never changed, and any extra keys next to them are
+dropped.  Outputs without such an object are left as is.
 This separates format damage (extra ``}``, missing ``</tool_call>``,
 markdown JSON blocks, repetition after the call) from content damage.  The
 repaired score is a diagnostic, not an official BFCL result.
@@ -28,23 +30,39 @@ import json
 from pathlib import Path
 
 
-def repair(text: str) -> str:
+def _calls(text: str) -> list[dict]:
     decoder = json.JSONDecoder()
-    for index, char in enumerate(text):
-        if char != "{":
+    calls = []
+    index = 0
+    while index < len(text):
+        if text[index] != "{":
+            index += 1
             continue
         try:
-            obj, _ = decoder.raw_decode(text[index:])
+            obj, end = decoder.raw_decode(text, index)
         except json.JSONDecodeError:
+            index += 1
             continue
         if isinstance(obj, dict) and isinstance(obj.get("name"), str) and isinstance(obj.get("arguments"), dict):
-            call = {"name": obj["name"], "arguments": obj["arguments"]}
-            return "<tool_call>\n" + json.dumps(call, ensure_ascii=False) + "\n</tool_call>"
-    return text
+            calls.append({"name": obj["name"], "arguments": obj["arguments"]})
+            index = end
+        else:
+            index += 1
+    return calls
+
+
+def repair(text: str, all_calls: bool = False) -> str:
+    calls = _calls(text)
+    if not calls:
+        return text
+    if not all_calls:
+        calls = calls[:1]
+    return "\n".join("<tool_call>\n" + json.dumps(call, ensure_ascii=False) + "\n</tool_call>" for call in calls)
 
 
 def repair_file(source: Path, destination: Path) -> tuple[int, int]:
     destination.parent.mkdir(parents=True, exist_ok=True)
+    all_calls = "parallel" in source.name
     total = changed = 0
     with source.open(encoding="utf-8") as reader, destination.open("w", encoding="utf-8") as writer:
         for line in reader:
@@ -52,7 +70,7 @@ def repair_file(source: Path, destination: Path) -> tuple[int, int]:
                 continue
             record = json.loads(line)
             if isinstance(record.get("result"), str):
-                repaired = repair(record["result"])
+                repaired = repair(record["result"], all_calls)
                 changed += repaired != record["result"]
                 record["result"] = repaired
             total += 1

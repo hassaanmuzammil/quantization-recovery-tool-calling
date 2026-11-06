@@ -75,3 +75,7 @@ bfcl evaluate \
   --test-category live_simple \
   --result-dir result/qwen_bf16 \
   --score-dir score/qwen_bf16
+
+python -m scripts.repair_bfcl_results.py \
+  --result-dir result/qwen_q2_openhermes \
+  --output-dir result/qwen_q2_openhermes_repaired

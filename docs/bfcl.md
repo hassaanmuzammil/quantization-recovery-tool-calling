@@ -127,8 +127,6 @@ From `bfcl_eval/eval_checker/eval_runner_helper.py`:
 
 ## Categories used in this project
 
-The full plan is in [todo.md](todo.md).
-
 1. `live_simple` first, on all models, as an intermediate-difficulty first
    pass.
 2. Then 6 single-turn categories (2,995 cases):

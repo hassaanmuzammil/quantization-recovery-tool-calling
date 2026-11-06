@@ -29,6 +29,7 @@ performance lost after degrading the model with random weight perturbations.
 - LoRA rank/alpha: 64/64
 - Learning rate: `5e-4`
 - Distillation: teacher-student token-level KL loss
+- GPU: NVIDIA RTX 5080 (16 GB VRAM)
 
 ### Results
 
@@ -73,6 +74,7 @@ reliability after quantizing the model's gate/up projections to 2-bit precision.
 - LoRA rank/alpha: 64/64
 - Sequence length: 2,048
 - Checkpoints: `ckpts/qwen3_4b_q2_gate_up_g32_openhermes/`
+- GPU: NVIDIA H100 (80 GB VRAM)
 
 ### Results
 
@@ -190,7 +192,8 @@ training.
 Test whether distilling on tool-calling data recovers more tool-calling
 ability than distilling on general text. The 2-bit model is recovered twice
 with the same recipe as Experiment 2 (LoRA rank 64 on gate/up, learning rate
-`5e-4`, 1 epoch, 10,000 examples). Only the KD data differs:
+`5e-4`, 1 epoch, 10,000 examples, one NVIDIA H100 with 80 GB VRAM). Only the
+KD data differs:
 
 - **OpenHermes-10k:** general instruction text (the Experiment 2 adapter).
 - **xLAM-10k:** the first 10,000 xLAM function-calling examples, rendered in
@@ -256,6 +259,8 @@ Same setup as the xLAM-10k KD run in Experiment 4, except:
 - **Batch:** 4 × 16 gradient accumulation (effective batch 64, unchanged).
 - **Checkpoints:** `ckpts/qwen3_4b_q2_gate_up_g32_xlam_sft/`
 
+GPU: NVIDIA H100 (80 GB VRAM), as in Experiment 4.
+
 This is SFT of the 2-bit model, not the proposal's C5 (SFT of the BF16
 model).
 
@@ -287,3 +292,80 @@ KD technique. Call content, however, does not improve: once formatting is
 repaired, SFT equals KD (about 83% of BF16), even with ground-truth labels.
 That points to the 2-bit model with a rank-64 gate/up adapter as the limit
 on content (single seed, one epoch, 10,000 examples).
+
+## Experiment 6: BFCL Six-Category Evaluation
+
+### Description
+
+Evaluate all models on the six single-turn BFCL v4 categories chosen in
+[bfcl.md](bfcl.md), in FC mode. Scores are official (no format repair).
+Empty cells are not run yet.
+
+### Results
+
+| Model | `simple_python` (400) | `multiple` (200) | `parallel` (200) | `live_simple` (258) | `live_multiple` (1,053) | `live_irrelevance` (884) |
+|---|---:|---:|---:|---:|---:|---:|
+| BF16 original | 95.25% | 93.00% | 92.50% | 79.46% | 76.45% | 81.11% |
+| q4 | 45.75% | 53.50% | 45.50% | 24.81% | 27.92% | 86.20% |
+| q2 | | | | 0.00% | | |
+| q2 + OpenHermes-10k KD | 33.75% | 33.00% | 0.50% | 13.57% | 11.11% | 92.31% |
+| q2 + xLAM-10k KD | 25.00% | 29.00% | 10.00% | 22.48% | 18.71% | 74.10% |
+| q2 + xLAM-10k SFT | 67.75% | 61.50% | 46.50% | 50.78% | 28.96% | 35.63% |
+
+**Note:** `live_irrelevance` rewards making no call, so a model that fails
+to produce a parseable call scores high on it. It must be read together
+with the relevance categories, not as a measure of abstention on its own.
+
+#### Formatting repaired
+
+Produced with `scripts/repair_bfcl_results.py` (diagnostic only). Each
+valid call is rewrapped in correct `<tool_call>` tags without changing the
+function name or arguments: the first call only, except in `parallel`,
+where all calls are kept. Repair leaves BF16 within 2 cases of its official
+score in every category, so BF16 is not repeated. On `live_irrelevance`,
+repair turns malformed calls into parseable ones, so the repaired score
+approximates true abstention.
+
+| Model | `simple_python` (400) | `multiple` (200) | `parallel` (200) | `live_simple` (258) | `live_multiple` (1,053) | `live_irrelevance` (884) |
+|---|---:|---:|---:|---:|---:|---:|
+| BF16 original (official) | 95.25% | 93.00% | 92.50% | 79.46% | 76.45% | 81.11% |
+| q4, no KD | 87.25% | 86.00% | 76.50% | 67.44% | 63.34% | 59.05% |
+| q2, no KD | | | | 11.24% | | |
+| q2 + OpenHermes-10k KD | 82.50% | 80.50% | 34.00% | 61.63% | 38.56% | 57.01% |
+| q2 + xLAM-10k KD | 84.50% | 84.00% | 41.00% | 65.89% | 44.06% | 16.29% |
+| q2 + xLAM-10k SFT | 87.25% | 80.00% | 61.00% | 66.28% | 38.27% | 6.00% |
+
+**Note:** the OpenHermes `live_simple` repaired score (61.63%) differs from
+Experiment 2 (59.69%) because this repair also drops extra keys next to
+`arguments`. All other `live_simple` values match earlier experiments.
+
+### Takeaway
+
+**Before formatting repair (official):**
+
+- Most failures are unparseable calls. For q4 and both KD models, most
+  failures in every call-required category are "wrong number of functions",
+  while wrong-value errors stay close to BF16's count.
+- SFT scores highest of the quantized models on every call-required
+  category (e.g. `simple_python` 67.75% vs 45.75% for q4 and 25.00% for
+  xLAM KD), but lower than KD on `live_irrelevance` (35.63% vs 74.10%).
+  This lead comes from parseable calls, not better content (see below).
+- Official `live_irrelevance` overstates abstention, because malformed calls
+  count as correct "no call". xLAM KD scores 74.10% while deliberately
+  declining only 10.5% of queries; SFT, whose calls parse, drops to 35.63%.
+
+**After formatting repair:**
+
+- Formatting explains most of the official damage. Every q2 model reaches
+  80–87% on `simple_python` and `multiple` (BF16: 93–95%). xLAM KD beats
+  OpenHermes KD in every call-required category, reversing the official
+  order on `simple_python` and `multiple`. SFT and xLAM KD are within 4
+  points on `simple_python`, `multiple` and `live_simple`.
+- The 2-bit model's content damage is in `parallel` and `live_multiple`: q2
+  models reach 34–61% and 38–44%, vs 76.50% and 63.34% for q4 and 92.50%
+  and 76.45% for BF16. Labels help multi-call output (SFT 61.00% vs xLAM KD
+  41.00% on `parallel`) but not choosing among many realistic functions
+  (SFT 38.27% vs xLAM KD 44.06% on `live_multiple`).
+- xLAM training removes abstention. All 10,000 xLAM rows contain a call.
+  Repaired `live_irrelevance` is 16.29% for xLAM KD and 6.00% for SFT, vs
+  57–59% for q4 and OpenHermes KD and 81.11% for BF16.
