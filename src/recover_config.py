@@ -5,13 +5,16 @@ from dataclasses import dataclass
 
 @dataclass
 class RecoverLoRAConfig:
-    teacher_model: str = "Qwen/Qwen3-4B-Instruct-2507"
+    teacher_model: str | None = "Qwen/Qwen3-4B-Instruct-2507"
     degraded_model: str = "outputs/degraded_model"
     output_dir: str = "outputs/recover_lora"
     log_dir: str | None = None
     device: str = "cuda:0"
     dtype: str = "bfloat16"
     lora_targets: tuple[str, ...] | None = None
+    # "kd": token-level KL against the teacher on every token.
+    # "sft": cross-entropy on the assistant turn only; no teacher is loaded.
+    loss: str = "kd"
     lora_rank: int = 64
     lora_alpha: int = 64
     learning_rate: float = 5e-4

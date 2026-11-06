@@ -240,3 +240,50 @@ general-text KD already restores the `<tool_call>` format and most of the
 ability to choose functions and fill arguments. Neither dataset fixes the
 extra-`}` closing error, which is the main remaining gap to BF16, so
 switching to domain data alone does not close it.
+
+## Experiment 5: Supervised Fine-Tuning of the 2-bit Model (xLAM)
+
+### Description
+
+Test whether the 2-bit model can do tool calling at all when trained with
+labels. If supervised fine-tuning (SFT) also fails, the 2-bit model is the
+limitation; if it succeeds where KD did not, the KD technique is.
+
+Same setup as the xLAM-10k KD run in Experiment 4, except:
+
+- **Loss:** cross-entropy on the assistant turn only
+  (`<tool_call>…</tool_call><|im_end|>`), no teacher (`--loss sft`).
+- **Batch:** 4 × 16 gradient accumulation (effective batch 64, unchanged).
+- **Checkpoints:** `ckpts/qwen3_4b_q2_gate_up_g32_xlam_sft/`
+
+This is SFT of the 2-bit model, not the proposal's C5 (SFT of the BF16
+model).
+
+### Results
+
+BFCL v4 `live_simple`, FC mode. Repaired scores come from
+`scripts/repair_bfcl_results.py` (diagnostic only).
+
+| Model | Official (FC) | Formatting repaired | Well-formed outputs |
+|---|---:|---:|---:|
+| BF16 original | 79.46% | – | 247 / 258 |
+| q2 + xLAM-10k KD | 22.48% | 65.89% | 78 / 258 |
+| q2 + xLAM-10k SFT | 50.78% | 66.28% | 179 / 258 |
+
+Exact McNemar test, SFT vs KD: p ≈ 1e-14 official, p = 1.0 repaired.
+
+SFT scored higher officially, its advantage over KD comes primarily from better output formatting, not better function selection or argument generation.
+
+SFT fixes most closing errors (extra `}` drops from 107 outputs to 22). The
+main remaining format failure is repetition: 34 outputs open another
+`<tool_call>` instead of closing the first. After repair, the remaining
+errors are wrong argument values and missing required parameters.
+
+### Takeaway
+
+The 2-bit model can do tool calling: SFT more than doubles the official
+score of KD (50.78% vs 22.48%), so the formatting gap is a limitation of the
+KD technique. Call content, however, does not improve: once formatting is
+repaired, SFT equals KD (about 83% of BF16), even with ground-truth labels.
+That points to the 2-bit model with a rank-64 gate/up adapter as the limit
+on content (single seed, one epoch, 10,000 examples).

@@ -136,6 +136,11 @@ def _parser() -> argparse.ArgumentParser:
         dest="log_dir",
         help="TensorBoard log directory (defaults to <output-dir>/logs)",
     )
+    train_parser.add_argument(
+        "--loss",
+        choices=("kd", "sft"),
+        help="kd: distill from the teacher; sft: cross-entropy on assistant turns (no teacher)",
+    )
     train_parser.add_argument("--lora-rank", dest="lora_rank", type=int)
     train_parser.add_argument("--lora-alpha", dest="lora_alpha", type=int)
     train_parser.add_argument("--learning-rate", dest="learning_rate", type=float)

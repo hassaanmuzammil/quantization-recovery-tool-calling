@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 from transformers import get_linear_schedule_with_warmup
 
 from .adapters import add_lora_adapters, save_adapter_checkpoint
-from .distillation import batches, distillation_loss, read_texts
+from .distillation import assistant_labels, batches, distillation_loss, read_texts, sft_loss
 from .model_utils import load_model, load_tokenizer, set_seed
 from .recover_config import RecoverLoRAConfig
 
@@ -77,6 +77,30 @@ def _split_texts(texts: list[str], validation_split: float, seed: int) -> tuple[
     return shuffled[validation_count:], shuffled[:validation_count]
 
 
+def _batch_loss(student, teacher, tokenizer, batch, config: RecoverLoRAConfig) -> tuple[torch.Tensor, int]:
+    """Return the mean loss over the batch's trained tokens and how many there were."""
+    encoded = tokenizer(
+        list(batch),
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length=config.max_sequence_length,
+        return_offsets_mapping=config.loss == "sft",
+    )
+    if config.loss == "sft":
+        labels = assistant_labels(batch, encoded.pop("offset_mapping"), encoded.input_ids).to(config.device)
+        encoded = encoded.to(config.device)
+        student_logits = student(**encoded).logits
+        return sft_loss(student_logits, labels), int((labels[:, 1:] != -100).sum().item())
+
+    encoded = encoded.to(config.device)
+    with torch.no_grad():
+        teacher_logits = teacher(**encoded).logits
+    student_logits = student(**encoded).logits
+    mask = encoded.attention_mask.to(student_logits.dtype)
+    return distillation_loss(teacher_logits, student_logits, mask), int(mask.sum().item())
+
+
 @torch.no_grad()
 def _validation_loss(model, teacher, tokenizer, texts, config: RecoverLoRAConfig) -> float:
     if not texts:
@@ -85,18 +109,9 @@ def _validation_loss(model, teacher, tokenizer, texts, config: RecoverLoRAConfig
     total_loss = 0.0
     total_tokens = 0
     for batch in batches(texts, config.batch_size):
-        encoded = tokenizer(
-            list(batch),
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=config.max_sequence_length,
-        ).to(config.device)
-        teacher_logits = teacher(**encoded).logits
-        student_logits = model(**encoded).logits
-        mask = encoded.attention_mask
-        total_loss += distillation_loss(teacher_logits, student_logits, mask).item() * mask.sum().item()
-        total_tokens += mask.sum().item()
+        loss, tokens = _batch_loss(model, teacher, tokenizer, batch, config)
+        total_loss += loss.item() * tokens
+        total_tokens += tokens
     return total_loss / total_tokens
 
 
@@ -125,9 +140,18 @@ def _resolve_lora_targets(config: RecoverLoRAConfig) -> RecoverLoRAConfig:
 def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> None:
     set_seed(config.seed)
     config = _resolve_lora_targets(config)
-    tokenizer = load_tokenizer(config.teacher_model)
-    teacher = load_model(config.teacher_model, config.device, config.dtype).eval()
-    teacher.requires_grad_(False)
+    if config.loss not in ("kd", "sft"):
+        raise ValueError(f"Unsupported loss: {config.loss}")
+    if config.loss == "sft":
+        # SFT trains on labels only, so no teacher is used or recorded.  The
+        # degraded checkpoint carries its own tokenizer files (copied from the
+        # teacher by prepare-degraded).
+        config = replace(config, teacher_model=None)
+    tokenizer = load_tokenizer(config.teacher_model or config.degraded_model)
+    teacher = None
+    if config.loss == "kd":
+        teacher = load_model(config.teacher_model, config.device, config.dtype).eval()
+        teacher.requires_grad_(False)
     student = load_model(config.degraded_model, config.device, config.dtype)
     add_lora_adapters(student, config)
 
@@ -155,7 +179,11 @@ def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> 
         ),
         0,
     )
-    writer.add_text("run/models", f"Teacher: `{config.teacher_model}`\n\nStudent: `{config.degraded_model}`", 0)
+    writer.add_text(
+        "run/models",
+        f"Loss: `{config.loss}`\n\nTeacher: `{config.teacher_model}`\n\nStudent: `{config.degraded_model}`",
+        0,
+    )
     writer.add_text("run/paths", f"Synthetic data: `{synthetic_data}`\n\nCheckpoint: `{checkpoint}`", 0)
     degradation_metadata = Path(config.degraded_model) / "degradation_config.json"
     if degradation_metadata.exists():
@@ -225,18 +253,7 @@ def train(config: RecoverLoRAConfig, synthetic_data: Path, checkpoint: Path) -> 
             group_size = len(group)
             group_loss = 0.0
             for batch in group:
-                encoded = tokenizer(
-                    list(batch),
-                    return_tensors="pt",
-                    padding=True,
-                    truncation=True,
-                    max_length=config.max_sequence_length,
-                ).to(config.device)
-                with torch.no_grad():
-                    teacher_logits = teacher(**encoded).logits
-                student_logits = student(**encoded).logits
-                mask = encoded.attention_mask.to(student_logits.dtype)
-                loss = distillation_loss(teacher_logits, student_logits, mask)
+                loss, _ = _batch_loss(student, teacher, tokenizer, batch, config)
                 group_loss += loss.item()
                 (loss / group_size).backward()
             optimizer.step()
