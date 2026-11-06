@@ -131,14 +131,24 @@ The full plan is in [todo.md](todo.md).
 
 1. `live_simple` first, on all models, as an intermediate-difficulty first
    pass.
-2. Then 5 fast single-turn categories mixing easy and intermediate:
-   `simple_python`, `multiple`, `parallel`, `irrelevance`, `live_simple`.
+2. Then 6 single-turn categories (2,995 cases):
+
+   | Category | Cases | Why |
+   |---|---:|---|
+   | `simple_python` | 400 | Basic call correctness |
+   | `multiple` | 200 | Choosing a function (curated) |
+   | `live_simple` | 258 | One function, real queries |
+   | `live_multiple` | 1,053 | Proposal essential; choosing a function on realistic APIs |
+   | `live_irrelevance` | 884 | Proposal essential; abstention |
+   | `parallel` | 200 | Several intended calls in one turn |
+
 3. Hard categories (multi-turn, web search, memory) are skipped: the BF16
    model already scores 2–27% on them, so quantized models score near zero
    and the categories cannot separate the configurations.
 
-The proposal also lists `live_multiple` and `live_irrelevance` as essential;
-they are larger and are run after the 5-category set.
+`live_irrelevance` must be read together with a relevance score
+(`live_simple`, `live_multiple`): a model that never emits a call, such as
+q2, scores near 100% on it by failing.
 
 ## Running BFCL in this repo
 
